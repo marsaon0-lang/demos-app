@@ -71,7 +71,14 @@ const strengthHTML = (v, trend, label=true) => {
   let bars=''; for(let i=1;i<=10;i++) bars += `<i class="${i<=v?'on':''}" style="height:${4+i}px"></i>`;
   return `<span class="strength">${label?'<span>Сила</span>':''}<span class="sig">${bars}</span><span>${v}</span><span class="${trend==='up'?'up':'down'}">${trend==='up'?'↑':'↓'}</span></span>`;
 };
-const chipHTML = (tag, viewer) => `<button class="chip ${S.subs.has(tag[0])?'sub':''}" data-a="tag" data-tag="${esc(tag[0])}">${tag[2]||viewer?'<span class="vdot"></span>':''}<span>${esc(tag[0])}</span><span class="n">${esc(tag[1])}</span></button>`;
+// число подписчиков тега: одно на всё приложение, меняется при подписке/отписке
+const TAGN = {};
+const parseCnt = v => { const x = String(v).replace(/\s/g,''); return /тыс/.test(x) ? Math.round(parseFloat(x.replace(',','.'))*1000) : (parseInt(x,10)||0); };
+const fmtCnt = n => n >= 1000 ? String(Math.round(n/100)/10).replace('.',',') + ' тыс.' : String(n);
+const cnt = name => fmtCnt(TAGN[name] || 0);
+[...TRAILS, ...MY_TRAILS].forEach(t => t.tags.forEach(g => { if (!(g[0] in TAGN)) TAGN[g[0]] = parseCnt(g[1]); }));
+POPULAR_TAGS.forEach(g => { if (!(g[0] in TAGN)) TAGN[g[0]] = parseCnt(g[1]); });
+const chipHTML = (tag, viewer) => `<button class="chip ${S.subs.has(tag[0])?'sub':''}" data-a="tag" data-tag="${esc(tag[0])}">${tag[2]||viewer?'<span class="vdot"></span>':''}<span>${esc(tag[0])}</span><span class="n">${esc(cnt(tag[0]))}</span></button>`;
 
 function bottomNav(){
   return `<nav class="bottom-nav">
@@ -259,7 +266,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как считается награда X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · версия 0.1 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · версия 0.2 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как считается награда X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это покупка буста: Тропу увидят ещё 36 человек. Награда в DEMOS — за то, что вы помогли Тропе разойтись. Это не обещание дохода.</div>
@@ -292,7 +299,7 @@ SCREENS.create2 = () => { const d = S.draft; const q=(S.params.q||'').trim();
   <div class="title">Выберите теги</div><div class="body c-sec">От 1 до 3 тегов. Тропу сразу получат подписчики этих тегов и люди рядом с вами. Другие люди смогут добавить к ней другие теги.</div>
   <div class="field"><input placeholder="Найти или создать тег" value="${esc(q)}" data-input="ctag"></div>
   ${d.tags.length?`<div class="tag-grid">${d.tags.map(t=>`<button class="chip sub" data-a="ctag" data-v="${esc(t)}">${esc(t)} ✕</button>`).join('')}</div>`:''}
-  <div class="tag-grid">${list.filter(t=>!d.tags.includes(t[0])).map(t=>`<button class="chip" data-a="ctag" data-v="${esc(t[0])}">${t[0]} <span class="n">${t[1]}</span></button>`).join('')}</div>
+  <div class="tag-grid">${list.filter(t=>!d.tags.includes(t[0])).map(t=>`<button class="chip" data-a="ctag" data-v="${esc(t[0])}">${t[0]} <span class="n">${cnt(t[0])}</span></button>`).join('')}</div>
   ${q && !POPULAR_TAGS.some(t=>t[0].toLowerCase()===q.toLowerCase()) ? `<button class="btn secondary" data-a="ctag" data-v="${esc(q)}">Создать тег «${esc(q)}»</button>`:''}
   <div class="caption c-mut">Выбрано ${d.tags.length} из 3</div></div>
   <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))"><button class="btn primary" data-a="go" data-to="create3" ${d.tags.length?'':'disabled'}>Далее</button></div></div>`; };
@@ -381,7 +388,7 @@ SHEETS.addtag = p => { const t = byId(p.id), q = (p.q||'').trim();
   return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px"><div class="heading">Добавить тег к Тропе</div>
    <div class="caption c-sec">Можно добавить один тег — после того, как досмотрели Тропу. Тропу сразу получат ещё 8 человек: ближайшие к вам подписчики этого тега.</div>
    <div class="field" style="display:flex;gap:6px"><span class="c-mut">#</span><input id="addtag-q" placeholder="тег" value="${esc(q)}" data-input="addtag-q"></div>
-   <div class="caption c-mut">Похожие теги</div><div class="tag-grid">${sugg.map(x=>`<button class="chip" data-a="addtag-do" data-id="${t.id}" data-v="${esc(x[0])}">${x[0]} <span class="n">${x[1]}</span></button>`).join('')}</div>
+   <div class="caption c-mut">Похожие теги</div><div class="tag-grid">${sugg.map(x=>`<button class="chip" data-a="addtag-do" data-id="${t.id}" data-v="${esc(x[0])}">${x[0]} <span class="n">${cnt(x[0])}</span></button>`).join('')}</div>
    ${q && !POPULAR_TAGS.some(x=>x[0].toLowerCase()===q.toLowerCase())?`<button class="btn secondary" data-a="addtag-do" data-id="${t.id}" data-v="${esc(q)}">+ Создать тег «${esc(q)}»</button>`:''}
    <div class="caption c-mut">Уже у Тропы: ${t.tags.map(x=>x[0]).join(', ')}</div></div>`; };
 SHEETS.alltags = p => { const t = byId(p.id); return `<div class="grab"></div><div class="sc"><div class="heading">Теги Тропы · ${t.tags.length}</div>${t.tags.map(x=>`<div class="kv"><span>${chipHTML(x)}</span><span class="caption c-mut">${x[2]?'добавил зритель':'автор'}</span></div>`).join('')}</div>`; };
@@ -448,6 +455,8 @@ A.frag = el => { const t = byId(el.dataset.id); const n = t.my.frag + (+el.datas
   if (n<0) return; if (n>=t.frags.length){ return; } t.my.frag = n; t.my.seen.add(n); t.my.expanded=false; refreshCard(t.id); };
 A.expand = el => { const t = byId(el.dataset.id); t.my.expanded = !t.my.expanded; refreshCard(t.id); };
 A.tag = el => { const v = el.dataset.tag; const on = !S.subs.has(v); on?S.subs.add(v):S.subs.delete(v); store.set('subs',[...S.subs]); haptic();
+  TAGN[v] = Math.max(0, (TAGN[v]||0) + (on?1:-1));
+  document.querySelectorAll(`[data-tag="${CSS.escape(v)}"] .n`).forEach(n=>n.textContent = cnt(v));
   document.querySelectorAll(`[data-tag="${CSS.escape(v)}"]`).forEach(n=>n.classList.toggle('sub', on));
   toast(on?`Вы подписались на тег «${esc(v)}»`:`Вы отписались от тега «${esc(v)}»`);
   if (S.screen==='main' && S.feedTab==='subs') render(false); };
@@ -489,7 +498,7 @@ A.addtag = el => { const t = byId(el.dataset.id);
   openSheet('addtag', {id:t.id, q:''}); };
 A['addtag-do'] = el => { const t = byId(el.dataset.id), v = el.dataset.v.trim(); if(!v) return;
   const known = POPULAR_TAGS.find(x=>x[0].toLowerCase()===v.toLowerCase());
-  t.tags.push([known?known[0]:v, known?known[1]:'0', 1]); t.my.tagAdded = true; closeSheet(); refreshCard(t.id);
+  const nm = known?known[0]:v; if (!(nm in TAGN)) TAGN[nm] = 0; t.tags.push([nm, cnt(nm), 1]); t.my.tagAdded = true; closeSheet(); refreshCard(t.id);
   toast(`Тег добавлен. Тропу получат ещё 8 человек — подписчики тега «${esc(known?known[0]:v)}»`); };
 A.alltags = el => openSheet('alltags', {id:el.dataset.id});
 A['open-trail'] = el => go('trail', {id:el.dataset.id});
