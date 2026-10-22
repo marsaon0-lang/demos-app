@@ -256,11 +256,28 @@ function walletHTML(){
     <div class="kv"><div><div>Получено от зрителей</div><div class="caption c-mut">за 30 дней · растёт сразу</div></div><span class="strong">3 260 DEMOS</span></div>
     <div class="kv"><div><div>Вас поблагодарили</div><div class="caption c-mut">разово, за ваши Тропы</div></div><span class="strong">37 человек</span></div>
     <div class="box" style="margin-top:6px"><div class="strong">Пригласите друзей</div><div class="caption c-sec" style="margin:4px 0 8px">3% от каждого их буста X3D — вам в TON, сразу. Действует 6 месяцев с момента, как друг пришёл по ссылке.</div>
-      <div class="caption c-sec">Приглашено 4 · получено 12,6 TON</div>
+      <button class="caption c-acc" style="text-align:left" data-a="go" data-to="referrals">Приглашено ${REFERRAL.friends.length} · получено ${refTotal()} TON  →</button>
       <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><div class="field" style="flex:1;padding:10px 12px"><span class="caption">t.me/demos_bot?start=marsaon</span></div><button class="btn secondary" style="width:auto;padding:0 14px;height:42px;font-size:14px" data-a="copy">Копировать</button></div></div></div>`;
 }
 
 SCREENS.trail = () => { const t = byId(S.params.id); return `<div class="screen">${topbar(t.own?'Ваша Тропа':'Тропа')}<div class="feed">${cardHTML(t)}</div></div>`; };
+
+// ---------- приглашённые ----------
+const MONTHS_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const tonFmt = n => String(Math.round(n*10)/10).replace('.',',');
+const refEarned = nick => REFERRAL.ledger.filter(e=>e.friend===nick).reduce((a,e)=>a+e.amount,0);
+function refTotal(){ return tonFmt(REFERRAL.ledger.reduce((a,e)=>a+e.amount,0)); }
+function refLeft(f){ const d = new Date(f.joined+'T00:00:00'); const end = new Date(d); end.setMonth(end.getMonth()+REFERRAL.months);
+  const ms = end - Date.now(); return ms<=0 ? 0 : Math.ceil(ms/(30.44*86400000)); }
+SCREENS.referrals = () => { const fr = REFERRAL.friends;
+  return `<div class="screen">${topbar('Приглашённые')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
+  <div class="box center" style="padding:20px"><div class="caption c-sec">Получено от приглашённых</div><div style="display:flex;justify-content:center;align-items:baseline;gap:6px;margin-top:4px"><span class="title" style="font-size:36px">${refTotal()}</span><span class="c-sec">TON · ${fr.length} ${fr.length===1?'друг':fr.length<5?'друга':'друзей'}</span></div></div>
+  <div class="caption c-sec">3% от каждого буста X3D приглашённого — вам в TON сразу. По каждому другу действует 6 месяцев с момента, как он пришёл по вашей ссылке.</div>
+  <div class="strong">Друзья</div>
+  <div>${fr.map(f=>{ const d=new Date(f.joined+'T00:00:00'); const left=refLeft(f);
+    return `<div class="kv"><div><div class="strong">@${esc(f.nick)}</div><div class="caption ${left?'c-mut':'c-warn'}">${f.she?'пришла':'пришёл'} ${d.getDate()} ${MONTHS_GEN[d.getMonth()]} · ${left?`осталось ${left} мес`:'срок истёк'}</div></div><span class="strong c-suc">+${tonFmt(refEarned(f.nick))} TON</span></div>`; }).join('')}</div>
+  <div class="caption c-mut">После 6 месяцев друг остаётся в DEMOS, но 3% от его бустов больше не начисляются.</div>
+  <div style="display:flex;gap:8px;align-items:center"><div class="field" style="flex:1;padding:10px 12px"><span class="caption">${REFERRAL.link}</span></div><button class="btn secondary" style="width:auto;padding:0 14px;height:42px;font-size:14px" data-a="copy">Копировать</button></div></div></div>`; };
 
 SCREENS.withdraw = () => `<div class="screen">${topbar('Вывод DEMOS')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:12px">
   <div class="box center" style="padding:24px"><div class="title" style="font-size:36px">${fmt(S.wallet.available)}</div><div class="caption c-sec">DEMOS · всё доступное</div></div>
@@ -274,7 +291,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как считается награда X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · версия 0.6 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · версия 0.7 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как считается награда X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это покупка буста: Тропу увидят ещё 36 человек. Награда в DEMOS — за то, что вы помогли Тропе разойтись. Это не обещание дохода.</div>
@@ -673,6 +690,7 @@ document.addEventListener('change', e => {
 
 // ---------- старт ----------
 if (tg){ try{ tg.ready(); tg.expand(); tg.setHeaderColor && tg.setHeaderColor('#11151F'); tg.setBackgroundColor && tg.setBackgroundColor('#11151F'); tg.BackButton.onClick(back); if (tg.disableVerticalSwipes) tg.disableVerticalSwipes(); }catch(e){} }
+try{ const sp = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param; if (sp && !store.get('invitedBy', null)) store.set('invitedBy', {code: String(sp).replace(/^ref_/,''), at: new Date().toISOString()}); }catch(e){}
 S.screen = S.onboarded ? 'main' : 'splash';
 render(true);
 if (!S.onboarded) setTimeout(()=>{ if (S.screen==='splash') go('ob1', {}, false); }, 1800);

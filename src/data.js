@@ -103,3 +103,24 @@ const DETAILS = {
   'Помощь':['Донорство','Поиск людей','Волонтёры','Срочно']
 };
 const POPULAR_TAGS = [['Москва','41,2 тыс.'],['ЖКХ','19,1 тыс.'],['Животные','19,1 тыс.'],['Помощь','22,4 тыс.'],['Хамовники','3,4 тыс.'],['Дороги','7,8 тыс.'],['Детская площадка','12,6 тыс.'],['Экология','9,7 тыс.'],['Плющиха','48 тыс.'],['Ремонт дворов','3,4 тыс.'],['Донорство','8,9 тыс.'],['Поиск людей','14,2 тыс.']];
+
+// Реферальный учёт (решено 22.10: учёт с первого дня, тот же формат останется при переходе на реальные деньги).
+// Каждое начисление — отдельная запись: кто пригласил, кого, с какого буста, сумма буста, доля 3%, начисление, валюта, режим (points — пилот, real — реальные деньги).
+const REFERRAL = {
+  code: 'marsaon', link: 't.me/demos_bot?start=marsaon', share: 0.03, months: 6,
+  friends: [
+    {nick:'alex_m',  joined:'2026-08-12', she:false},
+    {nick:'katya.ru',joined:'2026-09-03', she:true},
+    {nick:'den_pro', joined:'2026-05-20', she:false},
+    {nick:'olga_v',  joined:'2026-03-02', she:true}
+  ],
+  ledger: [
+    {friend:'alex_m',  date:'2026-08-20', boost:'X3D', paid:100, amount:3.0, cur:'TON', mode:'points'},
+    {friend:'alex_m',  date:'2026-10-02', boost:'X3D', paid:70,  amount:2.1, cur:'TON', mode:'points'},
+    {friend:'katya.ru',date:'2026-09-15', boost:'X3D', paid:110, amount:3.3, cur:'TON', mode:'points'},
+    {friend:'katya.ru',date:'2026-10-21', boost:'X3D', paid:20,  amount:0.6, cur:'TON', mode:'points'},
+    {friend:'den_pro', date:'2026-06-01', boost:'X3D', paid:60,  amount:1.8, cur:'TON', mode:'points'},
+    {friend:'den_pro', date:'2026-09-28', boost:'X3D', paid:33.33, amount:1.0, cur:'TON', mode:'points'},
+    {friend:'olga_v',  date:'2026-04-10', boost:'X3D', paid:26.67, amount:0.8, cur:'TON', mode:'points'}
+  ]
+};
