@@ -22,7 +22,7 @@ const S = {
   residentOk: false, firstTrail: true, createdToday: false, lastAddAt: 0,
   wallet: {available:2497, vesting:5828, perDay:833, daysLeft:5, ton:null},
   myX3d: [{title:'Пропал пёс Рони', st:'Активна', info:'10 TON · №1', rew:'до 9 000 DEMOS'},{title:'Прорвало трубу на Профсоюзной', st:'Начислено', info:'5 TON · №14', rew:'8 325 DEMOS'}],
-  draft: null, geo: {label:'Москва, улица Плющиха, 12', acc:'±20 м'},
+  draft: null, geo: store.get('geo', null) || {lat:55.7387, lon:37.5806, label:'Москва, улица Плющиха, 12', acc:0, src:'demo'}, me: null, mapPoint: null,
   topics: new Set(['Город','Животные','Помощь']), details: new Set(),
   comments: JSON.parse(JSON.stringify(COMMENTS)), replyTo: null
 };
@@ -173,14 +173,16 @@ SCREENS.geo = () => `<div class="screen"><div class="scroll pad" style="display:
   <div class="icon-circle" style="background:var(--bg-accent-soft);color:var(--t-accent);margin:0 0 8px">◎</div>
   <div class="title">Тропы рядом с вами</div>
   <div class="body c-sec">DEMOS работает от вашей точки на карте: Тропы приходят от неё — сначала самым ближним. Разрешите геолокацию или отметьте точку вручную. Другие видят только расстояние до Тропы, а не саму точку.</div></div>
-  <div class="pad" style="padding-bottom:calc(24px + var(--safe-bottom));display:flex;flex-direction:column;gap:8px"><button class="btn primary" data-a="geo-allow">Разрешить геолокацию</button><button class="btn ghost" data-a="go" data-to="map">Отметить точку вручную</button></div></div>`;
-SCREENS.map = () => `<div class="screen">${topbar('Где вы находитесь?')}
-  <div class="map"><div class="road" style="left:0;right:0;top:30%;height:14px;transform:rotate(-8deg)"></div><div class="road" style="top:0;bottom:0;left:62%;width:12px;transform:rotate(12deg)"></div><div class="road" style="left:0;right:0;top:66%;height:8px"></div><div class="pin"><i></i></div></div>
-  <div class="sheet" style="position:relative;animation:none;border-radius:20px 20px 0 0;margin-top:-20px"><div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:10px">
-    <div><div class="heading">${esc(S.geo.label)}</div><div class="caption c-mut">Точность ${esc(S.geo.acc)}</div></div>
-    <div class="body c-sec">DEMOS работает от вашей точки: Тропы приходят от неё — сначала самым ближним. Передвиньте карту, чтобы метка стояла точно там, где вы, и подтвердите.</div>
-    <div class="caption c-mut">Другие пользователи вашу точку не видят — только расстояние до Тропы.</div></div>
-    <div class="foot"><button class="btn primary" data-a="map-ok">Я нахожусь здесь</button><button class="btn ghost" data-a="geo-allow">Определить по геолокации</button></div></div></div>`;
+  <div class="pad" style="padding-bottom:calc(24px + var(--safe-bottom));display:flex;flex-direction:column;gap:8px"><button class="btn primary" data-a="geo-allow">Разрешить геолокацию</button><button class="btn ghost" data-a="map-manual">Отметить точку вручную</button></div></div>`;
+SCREENS.map = () => { const mode = S.params.mode || (S.onboarded?'edit':'onboard'); const create = mode==='create'; const P = S.mapPoint || (S.mapPoint = {...S.geo});
+  return `<div class="screen">${topbar(create?'Место начала раздачи':'Где вы находитесь?')}
+  <div class="map" id="mapbox"><div class="road" style="left:0;right:0;top:30%;height:14px;transform:rotate(-8deg)"></div><div class="road" style="top:0;bottom:0;left:62%;width:12px;transform:rotate(12deg)"></div><div class="road" style="left:0;right:0;top:66%;height:8px"></div><div class="pin"><i></i></div><div class="map-attr">© OpenStreetMap</div></div>
+  <div class="sheet" style="position:relative;animation:none;border-radius:20px 20px 0 0;margin-top:-20px;z-index:950"><div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:10px">
+    <div><div class="heading" id="map-label">${esc(P.label||'Определяем адрес…')}</div><div class="caption c-mut" id="map-sub">${mapSub(P, create)}</div></div>
+    <div class="body c-sec">${create?'Тропа начнёт расходиться от этой точки — сначала к самым ближним. Если событие было в другом месте рядом, передвиньте карту: не дальше 10 км от вас.':'DEMOS работает от вашей точки: Тропы приходят от неё — сначала самым ближним. Передвиньте карту, чтобы метка стояла точно там, где вы, и подтвердите.'}</div>
+    ${create?'':'<div class="caption c-mut">Другие пользователи вашу точку не видят — только расстояние до Тропы.</div>'}
+    <div class="caption c-warn hidden" id="map-warn">Слишком далеко: точку можно поставить не дальше 10 км от вас.</div></div>
+    <div class="foot"><button class="btn primary" id="map-ok" data-a="map-ok">${create?'Подтвердить точку':'Я нахожусь здесь'}</button><button class="btn ghost" data-a="map-locate">${create?'Вернуть мою геопозицию':'Определить по геолокации'}</button></div></div></div>`; };
 SCREENS.tags1 = () => `<div class="screen">${topbar('','Шаг 1 из 2')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px">
   <div class="title">Выберите темы</div><div class="body c-sec">Мы отметили три популярные темы вашего города — снимите лишние или добавьте свои.</div>
   <div class="tag-grid">${TOPICS.map(x=>`<button class="chip ${S.topics.has(x)?'sub':''}" data-a="topic" data-v="${x}">${x}</button>`).join('')}</div>
@@ -266,7 +268,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как считается награда X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · версия 0.3 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · версия 0.4 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как считается награда X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это покупка буста: Тропу увидят ещё 36 человек. Награда в DEMOS — за то, что вы помогли Тропе разойтись. Это не обещание дохода.</div>
@@ -274,7 +276,7 @@ SCREENS.reward = () => `<div class="screen">${topbar('Как считается 
 
 SCREENS.edit = () => `<div class="screen">${topbar('Изменить профиль')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:20px">
   <div><div class="caption c-sec">Никнейм</div><div class="field" style="display:flex;justify-content:space-between"><span>@marsaon</span><span>🔒</span></div><div class="caption c-mut">Уникальный. Его видят все вместо имени и аватарки.</div></div>
-  <div><div class="caption c-sec">Город</div><button class="field" style="width:100%;text-align:left" data-a="go" data-to="map">Москва</button><div class="caption c-mut">По вашей точке на карте. Нажмите, чтобы изменить точку.</div></div>
+  <div><div class="caption c-sec">Город</div><button class="field" style="width:100%;text-align:left" data-a="map-edit">${esc(S.geo.label||'Москва')}</button><div class="caption c-mut">По вашей точке на карте. Нажмите, чтобы изменить точку.</div></div>
   <div><div class="caption c-sec">О себе</div><div class="field"><textarea maxlength="160" style="min-height:70px">Пишу о том, что происходит в Хамовниках и вокруг. Без фейков.</textarea></div></div>
   <div><div class="caption c-sec">Соцсети</div><div class="caption c-mut" style="margin-bottom:6px">Видны всем, кто нажмёт на ваш ник. Добавляются ссылкой.</div>
   ${[['Telegram','@marsaon'],['Instagram','@marsaon.msk'],['YouTube',''],['VK',''],['TikTok','']].map(s=>`<div class="kv"><span>${s[0]}</span>${s[1]?`<span class="c-acc">${s[1]}</span>`:'<button class="c-acc caption" data-a="toast" data-m="Вставьте ссылку на профиль — ник подтянется сам">Добавить</button>'}</div>`).join('')}</div></div>
@@ -291,7 +293,7 @@ SCREENS.create1 = () => { const d = S.draft; const media = d.media.length;
   <div class="caption c-mut">Видео до 3 минут или до 10 фото</div>
   <div><div style="display:flex;justify-content:space-between"><span class="caption c-sec">Текст</span><span class="caption c-mut" id="cnt">${d.text.length}/1200</span></div>
   <div class="field"><textarea maxlength="1200" data-input="text" placeholder="Что происходит? Без заголовка — просто расскажите.">${esc(d.text)}</textarea></div></div>
-  <div class="caption c-sec">📍 Москва, Хамовники · определено автоматически</div></div>
+  <button class="field" style="width:100%;text-align:left;display:flex;gap:10px;align-items:center" data-a="draft-geo"><span>📍</span><span style="flex:1;min-width:0"><span class="caption c-mut">Место начала раздачи</span><br><span class="strong" id="draft-geo-label">${esc(d.geo.label||'Определяем адрес…')}</span><br><span class="caption c-mut" id="draft-geo-sub">${d.geo.src==='gps'?'по GPS':d.geo.src==='manual'?'указано вручную':'точка из профиля'}</span></span><span class="caption c-acc">Изменить</span></button></div>
   <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))"><button class="btn primary" data-a="go" data-to="create2" ${media&&d.text.trim()?'':'disabled'} id="next1">Далее</button></div></div>`; };
 SCREENS.create2 = () => { const d = S.draft; const q=(S.params.q||'').trim();
   const list = POPULAR_TAGS.filter(t=>!q || t[0].toLowerCase().includes(q.toLowerCase()));
@@ -416,6 +418,7 @@ function render(forward){
   const f2 = document.getElementById('feed'); if (f2 && S.screen==='main' && S.feedTop) f2.scrollTop = S.feedTop;
   S._lastScreen = S.screen;
   renderSheet(); syncBackButton();
+  if (S.screen==='map') setTimeout(initMap, 0); else killMap();
 }
 function renderSheet(){
   $app.querySelectorAll('.dim,.sheet.float').forEach(n=>n.remove());
@@ -427,6 +430,85 @@ function renderSheet(){
   syncBackButton();
 }
 
+// ---------- геопозиция и карта ----------
+const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+function distKm(a, b){ const R = 6371, r = x => x*Math.PI/180; const dLat = r(b.lat-a.lat), dLon = r(b.lon-a.lon);
+  const h = Math.sin(dLat/2)**2 + Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
+const fmtKm = km => km < 1 ? `${Math.round(km*1000)} м` : `${km.toFixed(1).replace('.',',')} км`;
+function mapSub(P, create){
+  if (P.src==='gps') return 'По GPS' + (P.acc ? ` · точность ±${Math.round(P.acc)} м` : '');
+  if (create && S.me) return `Указано вручную · ${fmtKm(distKm(S.me, P))} от вас`;
+  if (P.src==='manual') return 'Указано вручную';
+  return 'Передвиньте карту, чтобы поставить точку';
+}
+// Геопозиция: в Telegram — через LocationManager (Bot API 8.0+), в браузере — navigator.geolocation
+function locate(cb){
+  let fin = false; const done = (r, why) => { if (fin) return; fin = true; if (r) S.me = r; cb(r, why); };
+  setTimeout(() => done(null, 'timeout'), 15000);
+  try{
+    if (tg && tg.LocationManager && tg.isVersionAtLeast && tg.isVersionAtLeast('8.0')){
+      const LM = tg.LocationManager;
+      const ask = () => {
+        if (!LM.isLocationAvailable) return done(null, 'unavailable');
+        if (LM.isAccessRequested && !LM.isAccessGranted) return done(null, 'denied');
+        LM.getLocation(l => l ? done({lat:l.latitude, lon:l.longitude, acc:l.horizontal_accuracy||0}) : done(null, (LM.isAccessRequested && !LM.isAccessGranted) ? 'denied' : 'unavailable'));
+      };
+      LM.isInited ? ask() : LM.init(ask); return;
+    }
+    if (navigator.geolocation){ navigator.geolocation.getCurrentPosition(
+      p => done({lat:p.coords.latitude, lon:p.coords.longitude, acc:p.coords.accuracy||0}),
+      e => done(null, e && e.code===1 ? 'denied' : 'unavailable'), {enableHighAccuracy:true, timeout:12000, maximumAge:60000}); return; }
+  }catch(e){}
+  done(null, 'unavailable');
+}
+function locateError(why){
+  if (why==='denied') toast('Нет доступа к геолокации. Разрешите её для бота в настройках Telegram — или передвиньте карту вручную.' + (tg && tg.LocationManager ? ' <button class="c-acc" data-a="geo-settings" style="font-weight:600">Открыть настройки</button>' : ''));
+  else toast('Не удалось определить местоположение. Передвиньте карту, чтобы поставить точку вручную.');
+}
+let geoT = 0, geoN = 0;
+function reverseGeocode(lat, lon, cb){
+  clearTimeout(geoT); const n = ++geoN; const coords = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+  geoT = setTimeout(() => {
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=ru`)
+      .then(r => r.json()).then(j => { if (n !== geoN) return; const a = j.address || {};
+        const city = a.city || a.town || a.village || a.municipality || a.state || '';
+        const street = [a.road || a.pedestrian || a.square || a.neighbourhood || a.suburb || a.quarter, a.house_number].filter(Boolean).join(', ');
+        cb([city, street].filter(Boolean).join(', ') || coords); })
+      .catch(() => { if (n === geoN) cb(coords); });
+  }, 500);
+}
+let LMAP = null, LANCHOR = [];
+function killMap(){ if (LMAP){ try{ LMAP.remove(); }catch(e){} LMAP = null; LANCHOR = []; } }
+const anchorPoint = () => S.me || S.geo;
+const overLimit = () => S.params.mode==='create' && distKm(anchorPoint(), S.mapPoint) > 10;
+function checkLimit(){
+  const over = overLimit(); const w = document.getElementById('map-warn'); if (w) w.classList.toggle('hidden', !over);
+  const b = document.getElementById('map-ok'); if (b) b.disabled = over;
+}
+function drawAnchor(){
+  LANCHOR.forEach(l => { try{ LMAP.removeLayer(l); }catch(e){} }); LANCHOR = [];
+  if (!LMAP || S.params.mode!=='create') return; const a = anchorPoint();
+  LANCHOR.push(L.circle([a.lat, a.lon], {radius:10000, color:'#0166FF', weight:2, dashArray:'6 6', fillColor:'#0166FF', fillOpacity:.06, interactive:false}).addTo(LMAP));
+  if (S.me) LANCHOR.push(L.circleMarker([S.me.lat, S.me.lon], {radius:6, color:'#fff', weight:2, fillColor:'#9AA3B8', fillOpacity:1, interactive:false}).addTo(LMAP));
+}
+function initMap(){
+  killMap(); const box = document.getElementById('mapbox'); if (!box || !window.L) return;
+  const P = S.mapPoint; box.classList.add('live');
+  S.mapProg = true;
+  LMAP = L.map(box, {zoomControl:false, attributionControl:false}).setView([P.lat, P.lon], 16);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19}).addTo(LMAP);
+  drawAnchor(); checkLimit();
+  if (!P.label) reverseGeocode(P.lat, P.lon, lbl => { S.mapPoint.label = lbl; setText('map-label', lbl); });
+  LMAP.on('movestart', () => { if (!S.mapProg) setText('map-label', 'Определяем адрес…'); });
+  LMAP.on('moveend', () => {
+    const c = LMAP.getCenter(); const prog = S.mapProg; S.mapProg = false;
+    if (prog) return;
+    S.mapPoint = {lat:c.lat, lon:c.lng, acc:0, src:'manual', label:'Определяем адрес…'};
+    setText('map-sub', mapSub(S.mapPoint, S.params.mode==='create')); checkLimit();
+    reverseGeocode(c.lat, c.lng, lbl => { S.mapPoint.label = lbl; setText('map-label', lbl); });
+  });
+}
+
 // ---------- действия ----------
 const A = {};
 A.back = () => back();
@@ -434,15 +516,23 @@ A.close = () => closeSheet();
 A.go = el => go(el.dataset.to, {});
 A['ob-next'] = el => go(el.dataset.to, {}, false);
 A['terms-check'] = () => { S.params.ok = !S.params.ok; render(false); };
-A['geo-allow'] = () => {
-  const done = (lat,lon) => { if(lat) S.geo = {label:`Ваша точка · ${lat.toFixed(4)}, ${lon.toFixed(4)}`, acc:'по GPS'}; go('map', {}, S.screen!=='map'); };
-  try{
-    if (tg && tg.LocationManager){ tg.LocationManager.init(()=>{ if (tg.LocationManager.isLocationAvailable) tg.LocationManager.getLocation(l=> l?done(l.latitude,l.longitude):done()); else done(); }); return; }
-    if (navigator.geolocation){ navigator.geolocation.getCurrentPosition(p=>done(p.coords.latitude,p.coords.longitude), ()=>done(), {timeout:6000}); return; }
-  }catch(e){}
-  done();
-};
-A['map-ok'] = () => { if (S.onboarded){ toast('Точка сохранена'); back(); } else go('tags1', {}, false); };
+A['geo-allow'] = () => { toast('Определяем местоположение…');
+  locate((r, why) => { if (r) S.mapPoint = {lat:r.lat, lon:r.lon, acc:r.acc, src:'gps', label:''}; else { S.mapPoint = {...S.geo}; locateError(why); }
+    go('map', {mode: S.onboarded?'edit':'onboard'}, S.screen!=='map'); if (r) reverseGeocode(r.lat, r.lon, lbl => { S.mapPoint.label = lbl; setText('map-label', lbl); }); }); };
+A['map-manual'] = () => { S.mapPoint = {...S.geo, src:'manual'}; go('map', {mode:'onboard'}); };
+A['map-edit'] = () => { S.mapPoint = {...S.geo}; go('map', {mode:'edit'}); };
+A['draft-geo'] = () => { S.mapPoint = {...S.draft.geo}; go('map', {mode:'create'}); };
+A['geo-settings'] = () => { try{ tg && tg.LocationManager && tg.LocationManager.openSettings(); }catch(e){} };
+A['map-locate'] = () => { toast('Определяем местоположение…');
+  locate((r, why) => { if (!r) return locateError(why);
+    S.mapPoint = {lat:r.lat, lon:r.lon, acc:r.acc, src:'gps', label:'Определяем адрес…'};
+    if (LMAP){ S.mapProg = true; LMAP.setView([r.lat, r.lon], 16); drawAnchor(); } else render(false);
+    setText('map-label', S.mapPoint.label); setText('map-sub', mapSub(S.mapPoint, S.params.mode==='create')); checkLimit();
+    reverseGeocode(r.lat, r.lon, lbl => { S.mapPoint.label = lbl; setText('map-label', lbl); }); }); };
+A['map-ok'] = () => { const P = {...S.mapPoint}; const mode = S.params.mode;
+  if (mode==='create'){ if (overLimit()) return; S.draft.geo = P; S.draft.geoTouched = true; back(); return; }
+  S.geo = P; store.set('geo', P);
+  if (mode==='onboard' && !S.onboarded) go('tags1', {}, false); else { toast('Точка сохранена'); back(); } };
 A.topic = el => { const v = el.dataset.v; S.topics.has(v)?S.topics.delete(v):S.topics.add(v); render(false); };
 A.detail = el => { const v = el.dataset.v; S.details.has(v)?S.details.delete(v):S.details.add(v); render(false); };
 A['ob-finish'] = () => { S.onboarded = true; store.set('onboarded', true); [...S.topics, ...S.details].forEach(x=>S.subs.add(x)); store.set('subs',[...S.subs]); S.stack=[]; S.screen='main'; S.tab='feed'; render(true); };
@@ -504,8 +594,11 @@ A.alltags = el => openSheet('alltags', {id:el.dataset.id});
 A['open-trail'] = el => go('trail', {id:el.dataset.id});
 A.create = () => {
   if (S.createdToday) return go('limit');
-  S.draft = S.draft || {media:[], text:'', tags:[]};
+  S.draft = S.draft || {media:[], text:'', tags:[], geo:{...S.geo}};
   go('create1'); if (S.firstTrail) openSheet('firstTrail');
+  locate(r => { if (!r || !S.draft || S.draft.geoTouched) return;
+    S.draft.geo = {lat:r.lat, lon:r.lon, acc:r.acc, src:'gps', label:'Определяем адрес…'}; setText('draft-geo-label', S.draft.geo.label); setText('draft-geo-sub', 'по GPS');
+    reverseGeocode(r.lat, r.lon, lbl => { if (S.draft && !S.draft.geoTouched){ S.draft.geo.label = lbl; setText('draft-geo-label', lbl); } }); });
 };
 A['first-ok'] = () => { S.firstTrail = false; closeSheet(); };
 A['demo-media'] = () => { S.draft.media = [{url:artSVG('user').slice(5,-2), kind:'photo'}]; render(false); };

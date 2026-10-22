@@ -12,6 +12,7 @@ def page(tg):
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Unbounded:wght@900&display=swap" rel="stylesheet">
 {'<script src="https://telegram.org/js/telegram-web-app.js"></script>' if tg else ''}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>{css}</style></head>
 <body><div id="app"></div>
 <script>{js}</script></body></html>'''
@@ -22,6 +23,7 @@ art = f'''<title>DEMOS · Mini App</title>
 <meta name="theme-color" content="#11151F">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Unbounded:wght@900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>{css}</style>
 <div id="app"></div>
 <script>{js}</script>'''
