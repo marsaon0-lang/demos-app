@@ -97,9 +97,11 @@ input,textarea{font:inherit;color:inherit}
 .tags-strip::-webkit-scrollbar{display:none}
 .tags-fade{position:absolute;top:19px;right:0;width:64px;height:36px;background:linear-gradient(90deg,transparent,rgba(0,0,0,.7) 45%);z-index:5;pointer-events:none}
 .add-tag{position:absolute;top:22px;right:16px;width:30px;height:30px;border-radius:50%;background:rgba(17,21,31,.6);border:1.5px solid rgba(255,255,255,.35);display:grid;place-items:center;font-size:20px;font-weight:600;z-index:6}
-.author{position:absolute;top:66px;left:16px;right:16px;display:flex;align-items:center;gap:8px;z-index:4}
-.author .who{flex:1;min-width:0}
-.author .nick{font-weight:600;font-size:15px}
+.author{position:absolute;top:66px;left:16px;right:16px;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:8px;row-gap:8px;align-items:start;z-index:4}
+.author .who{grid-column:1;grid-row:1;min-width:0}
+.author .more{grid-column:2;grid-row:1}
+.author .sub-btn{grid-column:1 / -1;grid-row:2;justify-self:end}
+.author .nick{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .author .meta{font-size:12px;color:rgba(255,255,255,.75)}
 .sub-btn{height:28px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,.16);font-size:13px;font-weight:600;white-space:nowrap}
 .sub-btn.on{background:transparent;border:1.5px solid #fff}
@@ -605,7 +607,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как считается награда X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · версия 0.4 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · версия 0.5 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как считается награда X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это покупка буста: Тропу увидят ещё 36 человек. Награда в DEMOS — за то, что вы помогли Тропе разойтись. Это не обещание дохода.</div>
