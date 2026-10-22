@@ -478,7 +478,7 @@ function cardHTML(t, opts={}){
       ${canAdd?`<button class="add-tag" data-a="addtag" data-id="${t.id}" aria-label="Добавить тег">+</button>`:''}
       ${author}
       <div class="overlay">${strengthHTML(t.strength,t.trend)}<div class="txt ${t.my.expanded?'full':''}" data-a="expand" data-id="${t.id}">${esc(f.text)}</div></div>
-      <div class="rail"><button data-a="comments" data-id="${t.id}">${I.comment}<span>${t.comments}</span></button><div>${I.eye}<span>${t.views}</span></div></div>
+      <div class="rail">${f.url && f.kind==='video' ? `<button data-a="sound">${(!S.sound||S.soundBlocked)?ICON_SND_OFF:ICON_SND_ON}<span>${(!S.sound||S.soundBlocked)?'Звук выкл.':'Звук'}</span></button>` : ''}<button data-a="comments" data-id="${t.id}">${I.comment}<span>${t.comments}</span></button><div>${I.eye}<span>${t.views}</span></div></div>
     </div>
     ${actionsHTML(t)}
   </section>`;
@@ -515,6 +515,7 @@ function refreshCard(id){
   const sl = el.querySelector('.tags-strip'); const left = sl ? sl.scrollLeft : 0;
   const tmp = document.createElement('div'); tmp.innerHTML = cardHTML(t); const nw = tmp.firstElementChild;
   el.replaceWith(nw); const s2 = nw.querySelector('.tags-strip'); if(s2) s2.scrollLeft = left;
+  setTimeout(syncVideos, 0);
 }
 
 // ---------- экраны ----------
@@ -654,7 +655,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как считается награда X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · версия 0.8 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · версия 0.9 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как считается награда X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это покупка буста: Тропу увидят ещё 36 человек. Награда в DEMOS — за то, что вы помогли Тропе разойтись. Это не обещание дохода.</div>
@@ -807,6 +808,7 @@ function render(forward){
   S._lastScreen = S.screen;
   renderSheet(); syncBackButton();
   if (S.screen==='map') setTimeout(initMap, 0); else killMap();
+  setTimeout(syncVideos, 0);
 }
 function renderSheet(){
   $app.querySelectorAll('.dim,.sheet.float').forEach(n=>n.remove());
@@ -1043,21 +1045,59 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const k = e.target.dataset && e.target.dataset.input;
-  if (k==='media'){ const files = [...e.target.files].slice(0,10); if(!files.length) return;
-    const f = files[0]; const url = URL.createObjectURL(f);
-    if (f.type.startsWith('video')){ const v = document.createElement('video'); v.preload='metadata'; v.src=url;
-      v.onerror = () => toast('Не удалось открыть видео — попробуйте другой файл');
-      v.onloadedmetadata = () => { if (v.duration > 180){ toast('Видео длиннее 3 минут — обрежьте или выберите другое'); return; }
-        const m = Math.floor(v.duration/60), s = Math.round(v.duration%60); S.draft.media = [{url, kind:'video', dur:`${m}:${String(s).padStart(2,'0')}`}]; render(false); };
-    } else { S.draft.media = files.map(x=>({url:URL.createObjectURL(x), kind:'photo'})); render(false); } }
-  if (k==='addmedia'){ const f = e.target.files && e.target.files[0]; if (!f) return; const url = URL.createObjectURL(f);
-    const keep = () => { const ta = document.querySelector('[data-input="addtext"]'); if (ta) S.params.addText = ta.value; };
-    if (f.type.startsWith('video')){ const v = document.createElement('video'); v.preload='metadata'; v.src=url;
-      v.onloadedmetadata = () => { if (v.duration > 180){ toast('Видео длиннее 3 минут — обрежьте или выберите другое'); return; }
-        const mm = Math.floor(v.duration/60), ss = Math.round(v.duration%60); keep(); S.params.addMedia = {url, kind:'video', dur:`${mm}:${String(ss).padStart(2,'0')}`}; render(false); };
-      v.onerror = () => toast('Не удалось открыть видео — попробуйте другой файл');
-    } else { keep(); S.params.addMedia = {url, kind:'photo'}; render(false); } }
+  if (k==='media' || k==='addmedia') handleMedia(k, [...(e.target.files||[])]);
 });
+
+// Копия файла в памяти приложения. На Android доступ к файлу из галереи временный:
+// когда выбираешь следующий файл, ссылка на предыдущий может перестать работать — и картинка становится чёрной.
+async function ownURL(file){ try{ const buf = await file.arrayBuffer(); return URL.createObjectURL(new Blob([buf], {type: file.type || 'application/octet-stream'})); }catch(e){ return URL.createObjectURL(file); } }
+function videoMeta(url){ return new Promise(res => { const v = document.createElement('video'); v.preload='metadata'; v.muted = true; v.src = url;
+  v.onloadedmetadata = () => res(v.duration); v.onerror = () => res(null); setTimeout(()=>res(-1), 8000); }); }
+const durStr = d => `${Math.floor(d/60)}:${String(Math.round(d%60)).padStart(2,'0')}`;
+async function handleMedia(k, files){
+  if (!files.length) return;
+  const keepText = () => { const ta = document.querySelector('[data-input="addtext"]'); if (ta) S.params.addText = ta.value; };
+  const f = files[0];
+  if (f.type.startsWith('video')){
+    const url = await ownURL(f); const d = await videoMeta(url);
+    if (d === null) return toast('Не удалось открыть видео — попробуйте другой файл');
+    if (d > 180) return toast('Видео длиннее 3 минут — обрежьте или выберите другое');
+    const m = {url, kind:'video', dur: d > 0 ? durStr(d) : ''};
+    if (k==='media') S.draft.media = [m]; else { keepText(); S.params.addMedia = m; }
+  } else {
+    if (k==='media') S.draft.media = await Promise.all(files.slice(0,10).map(async x => ({url: await ownURL(x), kind:'photo'})));
+    else { keepText(); S.params.addMedia = {url: await ownURL(f), kind:'photo'}; }
+  }
+  render(false);
+}
+
+// ---------- видео в ленте: звук и воспроизведение только у видимой Тропы ----------
+S.sound = true;
+const ICON_SND_ON = '<svg viewBox="0 0 26 26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h4l6-5v16l-6-5H4z"/><path d="M18 9a5 5 0 0 1 0 8M21 6a9 9 0 0 1 0 14"/></svg>';
+const ICON_SND_OFF = '<svg viewBox="0 0 26 26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h4l6-5v16l-6-5H4z"/><path d="M18 10l6 6M24 10l-6 6"/></svg>';
+function soundButtons(){
+  document.querySelectorAll('[data-a="sound"]').forEach(b => { const muted = !S.sound || S.soundBlocked; b.innerHTML = (muted?ICON_SND_OFF:ICON_SND_ON) + `<span>${muted?'Звук выкл.':'Звук'}</span>`; });
+}
+function currentCard(){
+  const feed = document.querySelector('.feed'); if (!feed) return null;
+  const cards = [...feed.querySelectorAll('[data-card]')]; const fr = feed.getBoundingClientRect();
+  let best = null, bestV = 0;
+  cards.forEach(c => { const r = c.getBoundingClientRect(); const v = Math.min(r.bottom, fr.bottom) - Math.max(r.top, fr.top); if (v > bestV){ bestV = v; best = c; } });
+  return best;
+}
+function syncVideos(){
+  const cur = currentCard();
+  document.querySelectorAll('.feed video.slide').forEach(v => {
+    const active = cur && cur.contains(v);
+    if (!active){ v.muted = true; try{ v.pause(); }catch(e){} return; }
+    v.muted = !S.sound;
+    const p = v.play(); if (p && p.catch) p.then(()=>{ if (S.sound){ S.soundBlocked = false; soundButtons(); } }).catch(() => { v.muted = true; S.soundBlocked = S.sound; v.play().catch(()=>{}); soundButtons(); });
+  });
+  soundButtons();
+}
+let feedScrollT = 0;
+document.addEventListener('scroll', e => { if (e.target && e.target.classList && e.target.classList.contains('feed')){ clearTimeout(feedScrollT); feedScrollT = setTimeout(syncVideos, 120); } }, true);
+A.sound = () => { if (S.soundBlocked){ S.sound = true; S.soundBlocked = false; } else S.sound = !S.sound; syncVideos(); haptic(); };
 
 // ---------- старт ----------
 if (tg){ try{ tg.ready(); tg.expand(); tg.setHeaderColor && tg.setHeaderColor('#11151F'); tg.setBackgroundColor && tg.setBackgroundColor('#11151F'); tg.BackButton.onClick(back); if (tg.disableVerticalSwipes) tg.disableVerticalSwipes(); }catch(e){} }
