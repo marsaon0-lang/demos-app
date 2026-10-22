@@ -80,6 +80,12 @@ const cnt = name => fmtCnt(TAGN[name] || 0);
 POPULAR_TAGS.forEach(g => { if (!(g[0] in TAGN)) TAGN[g[0]] = parseCnt(g[1]); });
 const chipHTML = (tag, viewer) => `<button class="chip ${S.subs.has(tag[0])?'sub':''}" data-a="tag" data-tag="${esc(tag[0])}">${tag[2]||viewer?'<span class="vdot"></span>':''}<span>${esc(tag[0])}</span><span class="n">${esc(cnt(tag[0]))}</span></button>`;
 
+// медиа фрагмента: своё фото/видео пользователя (в v0 — только в памяти телефона) или заглушка
+const mediaBG = f => (f.url && f.kind!=='video') ? `url('${f.url}')` : artSVG(f.art);
+const vidTag = (url, cls, style='') => `<video class="${cls}" src="${url}" style="${style}" autoplay muted loop playsinline webkit-playsinline preload="metadata"></video>`;
+const slideHTML = f => (f.url && f.kind==='video') ? vidTag(f.url, 'slide') : `<div class="slide" style="background-image:${mediaBG(f)}"></div>`;
+const thumbInner = f => (f.url && f.kind==='video') ? vidTag(f.url, '', 'width:100%;height:100%;object-fit:cover;border-radius:10px') : '';
+
 function bottomNav(){
   return `<nav class="bottom-nav">
     <button class="nav-item ${S.tab==='feed'?'on':''}" data-a="nav" data-t="feed">${I.trails}<span>Тропы</span></button>
@@ -99,7 +105,7 @@ function cardHTML(t, opts={}){
     : `<div class="author"><button class="who" data-a="author" data-id="${t.id}" style="text-align:left"><div class="nick">@${t.author}</div><div class="meta">${t.ago} · ${t.dist}</div></button><button class="sub-btn ${t.my.subscribed?'on':''}" data-a="subscribe" data-id="${t.id}">${t.my.subscribed?'Вы подписаны':'Подписаться'}</button><button class="more" data-a="menu" data-id="${t.id}">⋯</button></div>`;
   return `<section class="card" data-card="${t.id}">
     <div class="media">
-      <div class="slide" style="background-image:${f.url?`url('${f.url}')`:artSVG(f.art)}"></div>
+      ${slideHTML(f)}
       <div class="shade-top"></div><div class="shade-bot"></div>
       ${bars}
       <button class="tap-prev" data-a="frag" data-id="${t.id}" data-d="-1" aria-label="Предыдущий фрагмент"></button>
@@ -206,7 +212,7 @@ function subsHTML(){
   if (S.subsTab==='trails'){
     const list = S.trails.filter(t=>t.my.subscribed || t.my.x3d);
     return seg + `<div class="pad"><div class="caption c-mut" style="margin-bottom:6px">Чужие Тропы, на которые вы подписались (и те, где купили X3D). Ваши собственные Тропы — в профиле, «Мои Тропы».</div>
-      ${list.length ? list.map(t=>`<button class="list-item" style="width:100%;text-align:left" data-a="open-trail" data-id="${t.id}"><div class="thumb" style="background-image:${artSVG(t.frags[0].art)}"></div><div style="flex:1;min-width:0"><div class="strong" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(t.frags[0].text)}</div><div class="caption c-mut">@${t.author} · ${t.ago}</div>${t.my.x3d?'<span class="badge acc" style="margin-top:4px">Вы в бусте</span>':''}</div></button>`).join('') : '<div class="empty">Пока нет подписок. Нажмите «Подписаться» на Тропе — сюда придут её дополнения.</div>'}</div>`;
+      ${list.length ? list.map(t=>`<button class="list-item" style="width:100%;text-align:left" data-a="open-trail" data-id="${t.id}"><div class="thumb" style="background-image:${mediaBG(t.frags[0])}">${thumbInner(t.frags[0])}</div><div style="flex:1;min-width:0"><div class="strong" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(t.frags[0].text)}</div><div class="caption c-mut">@${t.author} · ${t.ago}</div>${t.my.x3d?'<span class="badge acc" style="margin-top:4px">Вы в бусте</span>':''}</div></button>`).join('') : '<div class="empty">Пока нет подписок. Нажмите «Подписаться» на Тропе — сюда придут её дополнения.</div>'}</div>`;
   }
   const q = (S.params.q||'').trim().toLowerCase();
   const found = q ? POPULAR_TAGS.filter(t=>t[0].toLowerCase().includes(q)) : [];
@@ -228,7 +234,7 @@ function profileHTML(){
   return `<div class="screen"><div class="scroll">${head}${body}</div>${bottomNav()}</div>`;
 }
 function myTrailsHTML(){
-  return `<div class="pad">${S.myTrails.map(t=>`<div class="list-item"><button class="thumb" style="background-image:${artSVG(t.frags[0].art)}" data-a="open-trail" data-id="${t.id}"></button>
+  return `<div class="pad">${S.myTrails.map(t=>`<div class="list-item"><button class="thumb" style="background-image:${mediaBG(t.frags[0])}" data-a="open-trail" data-id="${t.id}">${thumbInner(t.frags[0])}</button>
     <div style="flex:1;min-width:0" data-a="open-trail" data-id="${t.id}"><div class="strong" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(t.frags[0].text)}</div>
     <div style="margin-top:4px">${t.status==='finished'?'<span class="badge mut">Тропа завершена</span>':strengthHTML(t.strength,t.trend)}</div>
     <div class="caption c-sec">${fmt(t.shares)} раздали · ${t.x3d} X3D · ${t.mt} Money Trust</div></div>
@@ -268,7 +274,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как считается награда X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · версия 0.5 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · версия 0.6 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как считается награда X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это покупка буста: Тропу увидят ещё 36 человек. Награда в DEMOS — за то, что вы помогли Тропе разойтись. Это не обещание дохода.</div>
@@ -285,7 +291,8 @@ SCREENS.edit = () => `<div class="screen">${topbar('Изменить профи�
 // создание Тропы
 SCREENS.create1 = () => { const d = S.draft; const media = d.media.length;
   return `<div class="screen">${topbar('Новая Тропа','1/3')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:16px">
-  <label class="box" style="height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background-size:cover;background-position:center;${media?`background-image:url('${d.media[0].url}')`:''};position:relative;cursor:pointer">
+  <label class="box" style="height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background-size:cover;background-position:center;${media&&d.media[0].kind!=='video'?`background-image:url('${d.media[0].url}')`:''};position:relative;cursor:pointer;overflow:hidden">
+    ${media&&d.media[0].kind==='video'?vidTag(d.media[0].url,'','position:absolute;inset:0;width:100%;height:100%;object-fit:cover'):''}
     <input type="file" accept="image/*,video/*" multiple data-input="media" style="display:none">
     ${media?`<span class="badge mut" style="position:absolute;top:10px;right:10px">${d.media[0].kind==='video'?(d.media[0].dur+' из 3:00'):media+' фото'}</span><span class="badge acc" style="position:absolute;bottom:10px;right:10px">Заменить</span>`:'<div style="font-size:30px">+</div><div class="strong">Видео или фото</div>'}
   </label>
@@ -307,7 +314,7 @@ SCREENS.create2 = () => { const d = S.draft; const q=(S.params.q||'').trim();
   <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))"><button class="btn primary" data-a="go" data-to="create3" ${d.tags.length?'':'disabled'}>Далее</button></div></div>`; };
 SCREENS.create3 = () => { const d=S.draft;
   return `<div class="screen">${topbar('Превью','3/3')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:12px;padding-bottom:16px">
-  <div style="height:340px;border-radius:16px;position:relative;overflow:hidden;background:#000 center/cover;background-image:url('${d.media[0].url}')">
+  <div style="height:340px;border-radius:16px;position:relative;overflow:hidden;background:#000 center/cover;${d.media[0].kind!=='video'?`background-image:url('${d.media[0].url}')`:''}">${d.media[0].kind==='video'?vidTag(d.media[0].url,'','position:absolute;inset:0;width:100%;height:100%;object-fit:cover'):''}
     <div class="shade-bot" style="position:absolute;left:0;right:0;bottom:0;height:200px;background:linear-gradient(transparent,rgba(0,0,0,.8))"></div>
     <div style="position:absolute;top:12px;left:12px;right:12px;display:flex;gap:6px;flex-wrap:wrap">${d.tags.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>
     <div style="position:absolute;top:56px;left:12px"><div class="strong">@marsaon</div><div class="caption" style="color:rgba(255,255,255,.75)">только что · рядом</div></div>
@@ -322,9 +329,10 @@ SCREENS.limit = () => `<div class="screen">${topbar('Новая Тропа')}<di
 function limitLeft(){ const ms = (S.createdAt||Date.now()) + 86400000 - Date.now(); const h=Math.floor(ms/3600000), m=Math.floor(ms%3600000/60000); return `${h}:${String(m).padStart(2,'0')}`; }
 SCREENS.addition = () => { const t = byId(S.params.id); const wait = Math.max(0, 60 - Math.floor((Date.now()-S.lastAddAt)/1000));
   return `<div class="screen">${topbar('Дополнить Тропу')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:12px;padding-bottom:16px">
-  <div class="list-item" style="border:0"><div class="thumb" style="background-image:${artSVG(t.frags[0].art)}"></div><div><div class="strong">${esc(t.frags[0].text.slice(0,60))}…</div><div class="caption c-mut">Ваша Тропа · ${t.frags.length} фрагмента</div></div></div>
-  <label class="box" style="display:flex;align-items:center;gap:12px;cursor:pointer"><input type="file" accept="image/*,video/*" style="display:none" data-input="addmedia"><span class="icon-circle" style="width:44px;height:44px;margin:0;background:var(--bg-accent-soft);color:var(--t-accent)">+</span><span><span class="strong">Видео до 3 минут или фото</span><br><span class="caption c-mut">${S.params.added?'Файл выбран':'Снять сейчас или выбрать из галереи'}</span></span></label>
-  <div class="field"><textarea maxlength="1200" data-input="addtext" placeholder="Что нового?"></textarea></div>
+  <div class="list-item" style="border:0"><div class="thumb" style="background-image:${mediaBG(t.frags[0])}">${thumbInner(t.frags[0])}</div><div><div class="strong">${esc(t.frags[0].text.slice(0,60))}…</div><div class="caption c-mut">Ваша Тропа · ${t.frags.length} фрагмента</div></div></div>
+  <label class="box" style="display:flex;align-items:center;gap:12px;cursor:pointer"><input type="file" accept="image/*,video/*" style="display:none" data-input="addmedia"><span class="icon-circle" style="width:44px;height:44px;margin:0;background:var(--bg-accent-soft);color:var(--t-accent)">+</span><span><span class="strong">Видео до 3 минут или фото</span><br><span class="caption c-mut">${S.params.addMedia?(S.params.addMedia.kind==='video'?'Видео '+S.params.addMedia.dur+' · заменить':'Фото выбрано · заменить'):'Снять сейчас или выбрать из галереи'}</span></span></label>
+  ${S.params.addMedia?`<div style="height:220px;border-radius:14px;overflow:hidden;position:relative;background:#000 center/cover;${S.params.addMedia.kind!=='video'?`background-image:url('${S.params.addMedia.url}')`:''}">${S.params.addMedia.kind==='video'?vidTag(S.params.addMedia.url,'','position:absolute;inset:0;width:100%;height:100%;object-fit:cover'):''}</div>`:''}
+  <div class="field"><textarea maxlength="1200" data-input="addtext" placeholder="Что нового?">${esc(S.params.addText||'')}</textarea></div>
   <div class="caption c-mut">Дополнение станет новым фрагментом Тропы — у зрителей появится новая полоска сверху. Подписчики Тропы получат уведомление. Дополнять можно сколько угодно раз, не чаще раза в минуту.</div></div>
   <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))"><button class="btn primary" data-a="addition-do" data-id="${t.id}" ${wait?'disabled':''}>${wait?`Следующее дополнение через 0:${String(wait).padStart(2,'0')}`:'Дополнить Тропу'}</button></div></div>`; };
 
@@ -609,14 +617,15 @@ A['publish-ask'] = () => openSheet('publish', {ok:false});
 A['publish-check'] = () => { S.sheet.params.ok = !S.sheet.params.ok; renderSheet(); };
 A['publish-do'] = () => { const d = S.draft; const id = 'new'+Date.now();
   S.myTrails.unshift({id, author:'marsaon', own:true, fresh:true, ago:'только что', status:'active',
-    frags:[{art:'user', text:d.text, url:d.media[0].url}], tags:d.tags.map(x=>{const k=POPULAR_TAGS.find(p=>p[0]===x); return [x,k?k[1]:'0',0];}),
+    frags:[{art:'user', text:d.text, url:d.media[0].url, kind:d.media[0].kind}], tags:d.tags.map(x=>{const k=POPULAR_TAGS.find(p=>p[0]===x); return [x,k?k[1]:'0',0];}),
     shares:0, x3d:0, mt:'0 TON', mtOf:0, strength:0, trend:'', comments:0, views:'108', my:{frag:0, seen:new Set([0])}});
   S.createdToday = true; S.createdAt = Date.now(); S.draft = null; S.newId = id; openSheet('published'); haptic('heavy'); };
 A['see-mine'] = () => { S.sheet=null; S.stack=[]; S.screen='trail'; S.params={id:S.newId}; S.stack=[{screen:'main',params:{}}]; S.tab='profile'; render(true); };
 A.addition = el => go('addition', {id:el.dataset.id});
 A['addition-do'] = el => { const t = byId(el.dataset.id); const txt = (document.querySelector('[data-input="addtext"]')||{}).value||'';
-  if (!txt.trim() && !S.params.added) return toast('Добавьте фото, видео или текст');
-  t.frags.push({art:t.frags[t.frags.length-1].art, text:txt.trim()||'Новое дополнение'}); S.lastAddAt = Date.now();
+  const m = S.params.addMedia;
+  if (!txt.trim() && !m) return toast('Добавьте фото, видео или текст');
+  t.frags.push({art:t.frags[t.frags.length-1].art, text:txt.trim(), url:m?m.url:undefined, kind:m?m.kind:undefined}); S.lastAddAt = Date.now();
   toast('Тропа дополнена. Подписчики получат уведомление'); back(); };
 A.toast = el => toast(el.dataset.m);
 A.reset = () => { try{localStorage.removeItem('demos_onboarded');}catch(e){} S.onboarded=false; S.stack=[]; go('splash',{},false); setTimeout(()=>{ if (S.screen==='splash') go('ob1',{},false); },1800); };
@@ -649,10 +658,17 @@ document.addEventListener('change', e => {
   if (k==='media'){ const files = [...e.target.files].slice(0,10); if(!files.length) return;
     const f = files[0]; const url = URL.createObjectURL(f);
     if (f.type.startsWith('video')){ const v = document.createElement('video'); v.preload='metadata'; v.src=url;
+      v.onerror = () => toast('Не удалось открыть видео — попробуйте другой файл');
       v.onloadedmetadata = () => { if (v.duration > 180){ toast('Видео длиннее 3 минут — обрежьте или выберите другое'); return; }
         const m = Math.floor(v.duration/60), s = Math.round(v.duration%60); S.draft.media = [{url, kind:'video', dur:`${m}:${String(s).padStart(2,'0')}`}]; render(false); };
     } else { S.draft.media = files.map(x=>({url:URL.createObjectURL(x), kind:'photo'})); render(false); } }
-  if (k==='addmedia'){ S.params.added = true; render(false); }
+  if (k==='addmedia'){ const f = e.target.files && e.target.files[0]; if (!f) return; const url = URL.createObjectURL(f);
+    const keep = () => { const ta = document.querySelector('[data-input="addtext"]'); if (ta) S.params.addText = ta.value; };
+    if (f.type.startsWith('video')){ const v = document.createElement('video'); v.preload='metadata'; v.src=url;
+      v.onloadedmetadata = () => { if (v.duration > 180){ toast('Видео длиннее 3 минут — обрежьте или выберите другое'); return; }
+        const mm = Math.floor(v.duration/60), ss = Math.round(v.duration%60); keep(); S.params.addMedia = {url, kind:'video', dur:`${mm}:${String(ss).padStart(2,'0')}`}; render(false); };
+      v.onerror = () => toast('Не удалось открыть видео — попробуйте другой файл');
+    } else { keep(); S.params.addMedia = {url, kind:'photo'}; render(false); } }
 });
 
 // ---------- старт ----------
