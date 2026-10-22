@@ -654,7 +654,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как считается награда X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · версия 0.7 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · версия 0.8 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как считается награда X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это покупка буста: Тропу увидят ещё 36 человек. Награда в DEMOS — за то, что вы помогли Тропе разойтись. Это не обещание дохода.</div>
@@ -999,14 +999,22 @@ A['publish-do'] = () => { const d = S.draft; const id = 'new'+Date.now();
   S.myTrails.unshift({id, author:'marsaon', own:true, fresh:true, ago:'только что', status:'active',
     frags:[{art:'user', text:d.text, url:d.media[0].url, kind:d.media[0].kind}], tags:d.tags.map(x=>{const k=POPULAR_TAGS.find(p=>p[0]===x); return [x,k?k[1]:'0',0];}),
     shares:0, x3d:0, mt:'0 TON', mtOf:0, strength:0, trend:'', comments:0, views:'108', my:{frag:0, seen:new Set([0])}});
-  S.createdToday = true; S.createdAt = Date.now(); S.draft = null; S.newId = id; openSheet('published'); haptic('heavy'); };
-A['see-mine'] = () => { S.sheet=null; S.stack=[]; S.screen='trail'; S.params={id:S.newId}; S.stack=[{screen:'main',params:{}}]; S.tab='profile'; render(true); };
+  S.createdToday = true; S.createdAt = Date.now(); S.draft = null; S.newId = id; showInFeed(id, 0); openSheet('published'); haptic('heavy'); };
+// после создания или дополнения — в ленту, прямо на эту Тропу и на нужный фрагмент
+function showInFeed(id, frag){
+  const t = byId(id); if (t.own && t.status==='active') t.fresh = true;
+  t.my.frag = frag; t.my.seen.add(frag); t.my.expanded = false;
+  S.stack = []; S.tab = 'feed'; S.feedTab = 'trails'; S.screen = 'main'; S.params = {}; S.sheet = null; render(true);
+  const el = document.querySelector(`[data-card="${id}"]`), feed = document.getElementById('feed');
+  if (el && feed){ feed.scrollTop = el.offsetTop - feed.offsetTop; S.feedTop = feed.scrollTop; }
+}
+A['see-mine'] = () => closeSheet();
 A.addition = el => go('addition', {id:el.dataset.id});
 A['addition-do'] = el => { const t = byId(el.dataset.id); const txt = (document.querySelector('[data-input="addtext"]')||{}).value||'';
   const m = S.params.addMedia;
   if (!txt.trim() && !m) return toast('Добавьте фото, видео или текст');
   t.frags.push({art:t.frags[t.frags.length-1].art, text:txt.trim(), url:m?m.url:undefined, kind:m?m.kind:undefined}); S.lastAddAt = Date.now();
-  toast('Тропа дополнена. Подписчики получат уведомление'); back(); };
+  showInFeed(t.id, t.frags.length-1); toast('Тропа дополнена. Подписчики получат уведомление'); };
 A.toast = el => toast(el.dataset.m);
 A.reset = () => { try{localStorage.removeItem('demos_onboarded');}catch(e){} S.onboarded=false; S.stack=[]; go('splash',{},false); setTimeout(()=>{ if (S.screen==='splash') go('ob1',{},false); },1800); };
 A.saved = () => { toast('Профиль сохранён'); back(); };
