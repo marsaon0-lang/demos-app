@@ -122,8 +122,12 @@ function cardHTML(t, opts={}){
     ${actionsHTML(t)}
   </section>`;
 }
+// уровень Money Trust: цвет треугольника по «N из 100 выбирают X3D»
+const MT_LEVELS = [[25,'#A78BFA'],[15,'#F0524F'],[8,'#3D8BFF'],[3,'#F5A524'],[0,'#9AA3B8']];
+const mtColor = n => MT_LEVELS.find(l => n >= l[0])[1];
+const mtTri = (n, size=12) => `<svg class="mt-tri" width="${size}" height="${Math.round(size*0.92)}" viewBox="0 0 12 11"><path d="M6 .8L11.4 10.2H.6Z" fill="${mtColor(n)}" stroke="${mtColor(n)}" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
 function mtRow(t){
-  return `<button class="mt" data-a="mt" data-id="${t.id}" style="width:100%;text-align:left"><span class="lbl">Money Trust</span><span class="val">${t.mt}</span><span class="bar"><i style="width:${t.mtOf}%"></i></span><span class="of">${t.mtOf} из 100 выбирают X3D</span><span class="info-i">i</span></button>`;
+  return `<button class="mt" data-a="mt" data-id="${t.id}" style="width:100%;text-align:left"><span class="lbl">Money Trust</span><span class="val">${t.mt}</span><span class="share">${mtTri(t.mtOf)}<b>${t.mtOf} из 100</b><span class="of">выбирают X3D</span></span><span class="info-i">i</span></button>`;
 }
 function actionsHTML(t){
   if (t.own){
@@ -135,13 +139,10 @@ function actionsHTML(t){
   }
   const m = t.my;
   if (m.x3d){
-    const x = m.x3d, pct = Math.round(100*(0.5*x.viewed/36 + 0.5*Math.min(1,x.fwd/6)));
+    const x = m.x3d;
     return `<div class="actions"><div class="part">
       <div class="top"><span class="strong">Вы поддержали Тропу</span>${strengthHTML(t.strength,t.trend)}</div>
       <div class="top"><span class="heading">+${fmt(x.demos)} DEMOS</span><span class="caption c-sec">${x.amount} TON · NFT получен</span></div>
-      <div class="top caption"><span class="c-sec">Результат буста</span><b>${pct}%</b></div>
-      <div class="prog"><i style="width:${pct}%"></i></div>
-      <div class="caption c-mut">Посмотрели ${x.viewed} из 36 · раздали дальше ${x.fwd} из 6</div>
     </div>${mtRow(t)}</div>`;
   }
   const shareBtn = m.shared ? '' : `<button class="btn secondary" data-a="share" data-id="${t.id}">${I.share}<span>Раздать</span><span class="cnt">${fmt(t.shares)}</span></button>`;
@@ -308,7 +309,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · версия 0.18 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · версия 0.19 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Вся сумма превращается в DEMOS на вашем счёте. Это не обещание дохода.</div>
@@ -404,7 +405,8 @@ SHEETS.boosted = p => { const t = byId(p.id), x = t.my.x3d;
 SHEETS.mt = p => { const t = byId(p.id); return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
    <div class="heading">Money Trust</div><div class="body c-sec">Показывает, насколько люди готовы платить за охват этой Тропы.</div>
    <div class="box"><div class="title">${t.mt}</div><div class="caption c-sec">Сколько всего заплатили за X3D этой Тропы.</div></div>
-   <div class="box"><div class="strong">${t.mtOf} из 100 выбирают X3D</div><div style="display:grid;grid-template-columns:repeat(20,1fr);gap:4px;margin:10px 0">${Array.from({length:100},(_,i)=>`<i style="aspect-ratio:1;border-radius:50%;background:${i<t.mtOf?'var(--t-accent)':'var(--bg-raised-hover)'}"></i>`).join('')}</div>
+   <div class="box"><div class="strong" style="display:flex;align-items:center;gap:6px">${mtTri(t.mtOf,14)}${t.mtOf} из 100 выбирают X3D</div>
+   <div style="display:flex;flex-direction:column;gap:6px;margin:12px 0"><span class="micro c-mut">ЦВЕТ ТРЕУГОЛЬНИКА</span>${[[0,'меньше 3 из 100'],[3,'от 3 до 7'],[8,'от 8 до 14'],[15,'от 15 до 24'],[25,'25 и больше']].map(l=>`<span class="caption c-sec" style="display:flex;align-items:center;gap:8px">${mtTri(l[0])}${l[1]}</span>`).join('')}</div>
    <div class="caption c-sec">Считаем, сколько из 100 человек, раздавших Тропу бесплатно, перешли на платную раздачу X3D. Здесь — ${t.mtOf}.</div>
    <div class="caption c-mut" style="margin-top:6px">X3D включает в себя бесплатную раздачу, поэтому каждый, кто купил X3D, уже входит в эти 100. Один человек считается один раз.</div></div></div>
    <div class="foot"><button class="btn secondary" data-a="close">Понятно</button></div>`; };
@@ -635,7 +637,7 @@ A['x3d-pay'] = el => { const id = el.dataset.id, a = S.sheet.params.amount || 10
     if (!t.my.shared){ t.shares++; t.my.shared = true; } t.x3d++; t.my.subscribed = true;
     S.lots.push({at:Date.now(), demos, trail:id, title:t.frags[0].text.slice(0,34)+'…', ton:a}); // каждая покупка — отдельно, для комиссии при выводе
     S.myX3d.unshift({title:t.frags[0].text.slice(0,34)+'…', st:'На счёте', info:`${a} TON · NFT получен`, rew:`${fmt(demos)} DEMOS`});
-    haptic('heavy'); openSheet('boosted', {id}); refreshCard(id); simulateBoost(id); }, 1400); };
+    haptic('heavy'); openSheet('boosted', {id}); refreshCard(id); }, 1400); };
 function simulateBoost(id){ const t = byId(id); const iv = setInterval(()=>{ const x = t.my.x3d; if(!x){clearInterval(iv);return;}
   x.viewed = Math.min(36, x.viewed + 3 + Math.floor(Math.random()*4)); if (Math.random()>.55) x.fwd = Math.min(6, x.fwd+1);
   if (!S.sheet) refreshCard(id); if (x.viewed>=36 && x.fwd>=6) clearInterval(iv); }, 4000); }

@@ -215,3 +215,8 @@ input,textarea{font:inherit;color:inherit}
 
 .nft-img{display:flex;align-items:center;justify-content:center;aspect-ratio:1;max-width:100%}
 .nft-img img{height:100%;width:auto;max-width:100%;object-fit:contain;filter:drop-shadow(0 4px 10px rgba(0,0,0,.45))}
+
+.mt .share{flex:1;display:flex;align-items:center;justify-content:flex-end;gap:5px;font-size:12px;white-space:nowrap}
+.mt .share b{font-weight:700}
+.mt .share .of{color:var(--t-secondary)}
+.mt-tri{flex-shrink:0;display:block}
