@@ -687,7 +687,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · версия 0.14 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · версия 0.15 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Вся сумма превращается в DEMOS на вашем счёте. Это не обещание дохода.</div>
@@ -849,7 +849,7 @@ function renderSheet(){
   if (S.sheet && SHEETS[S.sheet.name]){
     const d = document.createElement('div'); d.className='dim'; d.dataset.a='close';
     const s = document.createElement('div'); s.className='sheet float'; s.innerHTML = SHEETS[S.sheet.name](S.sheet.params);
-    $app.appendChild(d); $app.appendChild(s);
+    $app.appendChild(d); $app.appendChild(s); enableSwipeDown(s, d);
   }
   syncBackButton();
 }
@@ -930,6 +930,33 @@ function initMap(){
     S.mapPoint = {lat:c.lat, lon:c.lng, acc:0, src:'manual', label:'Определяем адрес…'};
     setText('map-sub', mapSub(S.mapPoint, S.params.mode==='create')); checkLimit();
     reverseGeocode(c.lat, c.lng, lbl => { S.mapPoint.label = lbl; setText('map-label', lbl); });
+  });
+}
+
+// ---------- свайп вниз закрывает окно ----------
+function enableSwipeDown(sheet, dim){
+  let y0 = null, dy = 0, t0 = 0, dragging = false;
+  const sc = sheet.querySelector('.sc');
+  sheet.addEventListener('touchstart', e => {
+    const inGrab = e.target.closest('.grab');
+    const atTop = !sc || sc.scrollTop <= 0 || !sc.contains(e.target);
+    if (e.target.closest('input,textarea')) return;
+    if (inGrab || atTop){ y0 = e.touches[0].clientY; dy = 0; t0 = Date.now(); dragging = false; sheet.style.transition = 'none'; }
+  }, {passive:true});
+  sheet.addEventListener('touchmove', e => {
+    if (y0 === null) return;
+    dy = e.touches[0].clientY - y0;
+    if (dy <= 0){ if (dragging){ sheet.style.transform = ''; } return; }
+    if (!dragging && sc && sc.scrollTop > 0 && sc.contains(e.target)) { y0 = null; return; }
+    dragging = true; e.preventDefault();
+    sheet.style.transform = `translateY(${dy}px)`; dim.style.opacity = String(Math.max(0, 1 - dy/400));
+  }, {passive:false});
+  sheet.addEventListener('touchend', () => {
+    if (y0 === null) return; const v = dy / Math.max(1, Date.now()-t0); y0 = null;
+    sheet.style.transition = 'transform .2s ease-out'; dim.style.transition = 'opacity .2s';
+    if (dragging && (dy > 110 || v > 0.6)){ sheet.style.transform = 'translateY(100%)'; dim.style.opacity = '0'; setTimeout(closeSheet, 190); }
+    else { sheet.style.transform = ''; dim.style.opacity = ''; }
+    dragging = false;
   });
 }
 
