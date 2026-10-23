@@ -1,0 +1,52 @@
+# Сборка тестового APK DEMOS для Android (24.10).
+# Запускается при изменении папки android/ или вручную (Actions → Android APK → Run workflow).
+# Готовый файл: Releases → «DEMOS для Android (тест)» → DEMOS.apk
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # один и тот же тестовый ключ подписи между сборками — чтобы новая версия ставилась поверх старой
+      - name: Restore signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: demos-debug-keystore-v1
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Build APK
+        working-directory: android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+        run: gradle assembleDebug --no-daemon
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk DEMOS.apk
+          gh release delete android-test --yes --cleanup-tag || true
+          gh release create android-test DEMOS.apk \
+            --title "DEMOS для Android (тест)" \
+            --notes "Тестовая сборка №${{ github.run_number }}. Внутри — веб-версия DEMOS, обновляется вместе с сайтом. Установка: скачать DEMOS.apk на телефоне и разрешить установку из этого источника." \
+            --prerelease
