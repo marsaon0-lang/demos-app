@@ -209,3 +209,6 @@ input,textarea{font:inherit;color:inherit}
 .nft-x{position:absolute;bottom:6px;right:8px;z-index:2;font-family:"Unbounded","Open Sans",sans-serif;font-weight:900;font-size:11px}
 .nft-ton{font-weight:700;font-size:15px}
 .nft-dm{font-size:11px;color:var(--t-secondary)}
+
+.lot{background:var(--bg-surface);border:1px solid var(--b-default);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.lot .top{display:flex;justify-content:space-between;align-items:center;gap:8px}

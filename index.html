@@ -218,6 +218,9 @@ input,textarea{font:inherit;color:inherit}
 .nft-x{position:absolute;bottom:6px;right:8px;z-index:2;font-family:"Unbounded","Open Sans",sans-serif;font-weight:900;font-size:11px}
 .nft-ton{font-weight:700;font-size:15px}
 .nft-dm{font-size:11px;color:var(--t-secondary)}
+
+.lot{background:var(--bg-surface);border:1px solid var(--b-default);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.lot .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
 </style></head>
 <body><div id="app"></div>
 <script>// DEMOS Mini App v0 — тестовые данные (как в Figma-прототипе)
@@ -396,8 +399,10 @@ const S = {
   myTrails: MY_TRAILS.map(t => ({...t, my:{frag:0, seen:new Set([0])}})),
   subs: new Set(store.get('subs', ['Москва','Хамовники','Помощь','Животные','ЖКХ','Дети','Дороги'])),
   residentOk: false, firstTrail: true, createdToday: false, lastAddAt: 0,
-  wallet: {available:2497, vesting:5828, perDay:833, daysLeft:5, ton:null},
-  myX3d: [{title:'Пропал пёс Рони', st:'Активна', info:'10 TON · №1', rew:'до 9 000 DEMOS'},{title:'Прорвало трубу на Профсоюзной', st:'Начислено', info:'5 TON · №14', rew:'8 325 DEMOS'}],
+  wallet: {ton:null},
+  // счёт DEMOS: каждая покупка X3D — отдельная партия со своей датой (стейкинг считается по каждой партии)
+  lots: [{at:Date.now()-10.2*86400000, demos:3000, title:'Пропал пёс Рони', ton:10},{at:Date.now()-4.3*86400000, demos:1500, title:'Прорвало трубу на Профсоюзной', ton:5},{at:Date.now()-0.6*86400000, demos:300, title:'Сломали площадку на Плющихе', ton:1}],
+  myX3d: [{title:'Пропал пёс Рони', st:'На счёте', info:'10 TON · NFT получен', rew:'3 000 DEMOS'},{title:'Прорвало трубу на Профсоюзной', st:'На счёте', info:'5 TON · NFT получен', rew:'1 500 DEMOS'}],
   draft: null, geo: store.get('geo', null) || {lat:55.7387, lon:37.5806, label:'Москва, улица Плющиха, 12', acc:0, src:'demo'}, me: null, mapPoint: null,
   topics: new Set(['Город','Животные','Помощь']), details: new Set(),
   comments: JSON.parse(JSON.stringify(COMMENTS)), replyTo: null
@@ -616,17 +621,30 @@ function myTrailsHTML(){
     ${t.status==='active'?`<button class="badge acc" style="height:30px" data-a="addition" data-id="${t.id}">Дополнить</button>`:''}</div>`).join('')}
     <div class="caption c-mut" style="padding:14px 0 24px">Свои Тропы — только здесь. В «Подписках» — чужие Тропы.</div></div>`;
 }
+// комиссия за вывод по дням хранения (стейкинг): <3 — 15%, 3+ — 10%, 7+ — 8%, 10+ — 6%
+const daysHeld = l => Math.floor((Date.now()-l.at)/86400000);
+const feeFor = d => d>=10?6 : d>=7?8 : d>=3?10 : 15;
+const nextTier = d => d<3?{at:3,fee:10} : d<7?{at:7,fee:8} : d<10?{at:10,fee:6} : null;
+const balance = () => S.lots.reduce((a,l)=>a+l.demos,0);
+const netOut = () => S.lots.reduce((a,l)=>a+Math.round(l.demos*(1-feeFor(daysHeld(l))/100)),0);
+const dayWord = n => (n%10===1&&n%100!==11)?'день':(n%10>=2&&n%10<=4&&(n%100<12||n%100>14))?'дня':'дней';
+function lotHTML(l){ const d = daysHeld(l), f = feeFor(d), nt = nextTier(d), out = Math.round(l.demos*(1-f/100));
+  const startAt = d<3?0:d<7?3:d<10?7:10, pct = nt ? Math.round(100*(d-startAt)/(nt.at-startAt)) : 100;
+  return `<div class="lot"><div class="top"><span class="strong">+${fmt(l.demos)} DEMOS</span><span class="badge ${f===6?'suc':'mut'}">комиссия ${f}%</span></div>
+    <div class="caption c-mut">${esc(l.title)} · ${l.ton} TON</div>
+    <div class="top caption" style="margin-top:6px"><span class="c-sec">Лежит ${d} ${dayWord(d)}</span><span>на кошелёк сейчас <b>${fmt(out)}</b></span></div>
+    <div class="prog" style="height:4px"><i style="width:${pct}%"></i></div>
+    <div class="caption c-mut">${nt?`Через ${nt.at-d} ${dayWord(nt.at-d)} — комиссия ${nt.fee}%, на кошелёк ${fmt(Math.round(l.demos*(1-nt.fee/100)))}`:'Минимальная комиссия — 6%'}</div></div>`; }
 function walletHTML(){
-  const w = S.wallet;
+  const w = S.wallet, bal = balance();
   return `<div class="pad" style="display:flex;flex-direction:column;gap:12px;padding-bottom:24px">
-    <div class="box"><div class="caption c-sec">Доступно</div><div style="display:flex;align-items:baseline;gap:6px"><span class="title">${fmt(w.available)}</span><span class="c-sec">DEMOS</span></div>
-      <button class="btn primary" style="margin-top:10px" data-a="go" data-to="withdraw" ${w.available<300?'disabled':''}>Вывести</button></div>
-    <div class="box"><div style="display:flex;justify-content:space-between"><span class="caption c-sec">В разблокировке</span><span class="strong">${fmt(w.vesting)} DEMOS</span></div>
-      <div class="caption c-mut" style="margin-top:4px">${w.vesting?`Каждый день открывается ещё ${fmt(w.perDay)} DEMOS · осталось ${w.daysLeft} дней`:'Всё разблокировано'}</div>
-      ${w.vesting?'<button class="caption c-acc" style="margin-top:8px" data-a="claim-all">Забрать всё сейчас →</button>':''}</div>
+    <div class="box"><div class="caption c-sec">На счёте</div><div style="display:flex;align-items:baseline;gap:6px"><span class="title">${fmt(bal)}</span><span class="c-sec">DEMOS</span></div>
+      <div class="caption c-sec" style="margin-top:2px">Вывести сейчас: ${fmt(netOut())} DEMOS после комиссии</div>
+      <button class="btn primary" style="margin-top:10px" data-a="go" data-to="withdraw" ${bal?'':'disabled'}>Вывести на кошелёк</button></div>
+    ${S.lots.length?`<div class="strong" style="margin-top:6px">Покупки на счёте</div><div class="caption c-mut" style="margin-top:-6px">Комиссия при выводе зависит от того, сколько дней лежит каждая покупка: меньше 3 дней — 15%, от 3 — 10%, от 7 — 8%, от 10 — 6%.</div>${S.lots.map(lotHTML).join('')}`:''}
     <div class="box" style="display:flex;justify-content:space-between;align-items:center"><span class="caption">${w.ton?'TON-кошелёк '+w.ton:'TON-кошелёк не подключён'}</span><button class="caption c-acc" data-a="ton">${w.ton?'Отключить':'Подключить'}</button></div>
     <div class="strong" style="margin-top:6px">Мои X3D</div>
-    ${S.myX3d.map(x=>`<div class="kv"><div><div class="strong">${esc(x.title)}</div><div class="caption c-mut">${x.info}</div></div><div style="text-align:right"><span class="badge ${x.st==='Активна'||x.st==='На счёте'?'acc':'suc'}">${x.st}</span><div class="caption c-sec">${x.rew}</div></div></div>`).join('')}
+    ${S.myX3d.map(x=>`<div class="kv"><div><div class="strong">${esc(x.title)}</div><div class="caption c-mut">${x.info}</div></div><div style="text-align:right"><span class="badge ${x.st==='На счёте'?'acc':'mut'}">${x.st}</span><div class="caption c-sec">${x.rew}</div></div></div>`).join('')}
     <div class="strong" style="margin-top:6px">Вы как автор</div>
     <div class="kv"><div><div>Получено от зрителей</div><div class="caption c-mut">за 30 дней · обновляется сразу</div></div><span class="strong">3 260 DEMOS</span></div>
     <div class="kv"><div><div>Вас поблагодарили</div><div class="caption c-mut">разово, за ваши Тропы</div></div><span class="strong">37 человек</span></div>
@@ -654,19 +672,22 @@ SCREENS.referrals = () => { const fr = REFERRAL.friends;
   <div class="caption c-mut">После 6 месяцев друг остаётся в DEMOS, но 1% от его бустов больше не начисляется.</div>
   <div style="display:flex;gap:8px;align-items:center"><div class="field" style="flex:1;padding:10px 12px"><span class="caption">${REFERRAL.link}</span></div><button class="btn secondary" style="width:auto;padding:0 14px;height:42px;font-size:14px" data-a="copy">Копировать</button></div></div></div>`; };
 
-SCREENS.withdraw = () => `<div class="screen">${topbar('Вывод DEMOS')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:12px">
-  <div class="box center" style="padding:24px"><div class="title" style="font-size:36px">${fmt(S.wallet.available)}</div><div class="caption c-sec">DEMOS · всё доступное</div></div>
-  <div class="kv"><span class="k">Вам на кошелёк</span><span class="v">${fmt(S.wallet.available)} DEMOS</span></div>
+SCREENS.withdraw = () => { const bal = balance(), out = netOut();
+  return `<div class="screen">${topbar('Вывод DEMOS')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:12px">
+  <div class="box center" style="padding:20px"><div class="caption c-sec">На кошелёк</div><div class="title" style="font-size:36px">${fmt(out)}</div><div class="caption c-sec">DEMOS из ${fmt(bal)} на счёте</div></div>
+  <div class="strong">По каждой покупке</div>
+  ${S.lots.map(l=>{ const d=daysHeld(l), f=feeFor(d); return `<div class="kv"><div><div>+${fmt(l.demos)} DEMOS</div><div class="caption c-mut">лежит ${d} ${dayWord(d)} · комиссия ${f}%</div></div><span class="v">${fmt(Math.round(l.demos*(1-f/100)))}</span></div>`; }).join('')}
+  <div class="kv"><span class="k">Комиссия всего</span><span class="v">${fmt(bal-out)} DEMOS</span></div>
   <div class="kv"><span class="k">Кошелёк</span><span class="v">${S.wallet.ton||'не подключён'}</span></div>
-  <div class="caption c-mut">Сеть TON возьмёт около 0,05 TON. Минимальная сумма вывода — 300 DEMOS.</div></div>
-  <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))"><button class="btn primary" data-a="withdraw-do">${S.wallet.ton?'Вывести':'Подключить кошелёк'}</button></div></div>`;
+  <div class="caption c-mut">Чтобы комиссия была меньше, подождите: от 3 дней — 10%, от 7 — 8%, от 10 — 6%. Сеть TON возьмёт около 0,05 TON. В тестовой версии вывод условный.</div></div>
+  <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))"><button class="btn primary" data-a="withdraw-do" ${bal?'':'disabled'}>${S.wallet.ton?`Вывести ${fmt(out)} DEMOS`:'Подключить кошелёк'}</button></div></div>`; };
 
 SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:18px;padding-bottom:24px">
   <div class="title" style="font-size:26px;line-height:1.3;margin:10px 0">Правда —<br>это мнение, выдержавшее<br>равную конкуренцию</div>
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как считается награда X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · версия 0.12 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · версия 0.13 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как считается награда X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это покупка буста: Тропу увидят ещё 36 человек. Награда в DEMOS — за то, что вы помогли Тропе разойтись. Это не обещание дохода.</div>
@@ -777,7 +798,7 @@ SHEETS.author = p => { const t = byId(p.id), a = AUTHORS[t.author] || {city:'М�
    <div class="foot">${t.my.thanked?'<div class="caption c-mut center">Вы уже поблагодарили автора за эту Тропу</div>':`<button class="btn primary" data-a="sheet" data-s="thank" data-id="${t.id}">Поблагодарить автора</button>`}</div>`; };
 SHEETS.thank = p => { const t = byId(p.id), v = p.v;
   return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px"><div class="heading">Поблагодарить @${t.author}</div>
-   <div class="caption c-sec">Из доступных ${fmt(S.wallet.available)} DEMOS. Сколько отправите — столько автор и получит.</div>
+   <div class="caption c-sec">С вашего счёта: ${fmt(balance())} DEMOS. Сколько отправите — столько автор и получит.</div>
    <div class="amounts">${[50,100,250].map(x=>`<button class="amt ${v===x?'on':''}" style="${x===100&&v!==100?'border-color:var(--b-accent)':''}" data-a="thank-v" data-id="${t.id}" data-v="${x}">${x}</button>`).join('')}<button class="amt" data-a="toast" data-m="В рабочей версии — ввод своей суммы">Своя</button></div>
    <div class="caption c-acc">100 DEMOS — рекомендуемая сумма</div></div>
    <div class="foot"><button class="btn primary" data-a="thank-send" data-id="${t.id}" ${v?'':'disabled'}>${v?`Отправить ${v} DEMOS`:'Отправить'}</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
@@ -808,12 +829,6 @@ SHEETS.publish = p => `<div class="grab"></div><div class="sc" style="display:fl
    <div class="foot"><button class="btn primary" data-a="publish-do" ${p.ok?'':'disabled'}>Опубликовать Тропу</button><button class="btn ghost" data-a="close">Вернуться и проверить</button></div>`;
 SHEETS.published = () => `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">✓</div><div class="heading">Тропа опубликована</div><div class="body c-sec">Её уже получают 108 человек — рядом с вами и по выбранным тегам. Дальше она пойдёт, если её будут раздавать.</div></div>
    <div class="foot"><button class="btn primary" data-a="see-mine">Посмотреть</button></div>`;
-SHEETS.claim = () => `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:10px"><div class="heading">Забрать всё сейчас?</div><div class="caption c-sec">В разблокировке ${fmt(S.wallet.vesting)} DEMOS, осталось ${S.wallet.daysLeft} дней.</div>
-   <div class="box"><div style="display:flex;justify-content:space-between"><span class="strong">Подождать ${S.wallet.daysLeft} дней</span><span class="strong">${fmt(S.wallet.vesting)}</span></div><div class="caption c-mut">По ${fmt(S.wallet.perDay)} DEMOS в день, без удержаний</div></div>
-   <div class="box"><div style="display:flex;justify-content:space-between"><span class="strong">Забрать сейчас</span><span class="strong">4 579</span></div><div class="caption c-warn">Удержание 21% · 1 249 DEMOS</div></div>
-   <div class="caption c-mut">Удержание уменьшается каждый день: 30% в первый день, 0% на седьмой.</div></div>
-   <div class="foot"><button class="btn secondary" data-a="close">Подождать</button><button class="btn ghost" data-a="claim-do">Забрать 4 579 DEMOS сейчас</button></div>`;
-
 // ---------- рендер ----------
 function render(forward){
   const feed = document.getElementById('feed'); if (feed && S._lastScreen==='main') S.feedTop = feed.scrollTop;
@@ -967,7 +982,7 @@ A['x3d-pay'] = el => { const id = el.dataset.id, a = S.sheet.params.amount || 10
   setTimeout(()=>{ const t = byId(id); const demos = a*RATE;
     t.my.x3d = {amount:a, demos, viewed:0, fwd:0, at:Date.now()};
     if (!t.my.shared){ t.shares++; t.my.shared = true; } t.x3d++; t.my.subscribed = true;
-    (S.lots = S.lots || []).push({at:Date.now(), demos, trail:id}); // каждая покупка — отдельно, для комиссии при выводе
+    S.lots.push({at:Date.now(), demos, trail:id, title:t.frags[0].text.slice(0,34)+'…', ton:a}); // каждая покупка — отдельно, для комиссии при выводе
     S.myX3d.unshift({title:t.frags[0].text.slice(0,34)+'…', st:'На счёте', info:`${a} TON · NFT получен`, rew:`${fmt(demos)} DEMOS`});
     haptic('heavy'); openSheet('boosted', {id}); refreshCard(id); simulateBoost(id); }, 1400); };
 function simulateBoost(id){ const t = byId(id); const iv = setInterval(()=>{ const x = t.my.x3d; if(!x){clearInterval(iv);return;}
@@ -985,8 +1000,8 @@ A['del-comment'] = el => { const id = +el.dataset.v; S.comments = S.comments.fil
 A.author = el => openSheet('author', {id:el.dataset.id});
 A.sheet = el => openSheet(el.dataset.s, {id:el.dataset.id});
 A['thank-v'] = el => { S.sheet.params.v = +el.dataset.v; renderSheet(); };
-A['thank-send'] = el => { const t = byId(el.dataset.id), v = S.sheet.params.v; if (v > S.wallet.available) return toast('Недостаточно DEMOS');
-  S.wallet.available -= v; t.my.thanked = true; openSheet('thanked', {id:t.id, v}); };
+A['thank-send'] = el => { const t = byId(el.dataset.id), v = S.sheet.params.v; if (v > balance()) return toast('Недостаточно DEMOS на счёте');
+  let left = v; for (let k=S.lots.length-1; k>=0 && left>0; k--){ const take = Math.min(left, S.lots[k].demos); S.lots[k].demos -= take; left -= take; } S.lots = S.lots.filter(l=>l.demos>0); t.my.thanked = true; openSheet('thanked', {id:t.id, v}); };
 A.link = el => { const u = el.dataset.v; try{ tg ? tg.openLink(u) : window.open(u,'_blank'); }catch(e){} };
 A.menu = el => openSheet('menu', {id:el.dataset.id});
 A['report-do'] = () => { closeSheet(); toast('Жалоба отправлена модераторам'); };
@@ -1039,9 +1054,8 @@ A.reset = () => { try{localStorage.removeItem('demos_onboarded');}catch(e){} S.o
 A.saved = () => { toast('Профиль сохранён'); back(); };
 A.copy = () => { try{ navigator.clipboard.writeText('https://t.me/demos_bot?start=marsaon'); }catch(e){} toast('Ссылка скопирована'); };
 A.ton = () => { S.wallet.ton = S.wallet.ton ? null : 'UQB…3fA2'; render(false); toast(S.wallet.ton?'Кошелёк подключён (тест)':'Кошелёк отключён'); };
-A['claim-all'] = () => openSheet('claim');
-A['claim-do'] = () => { S.wallet.available += 4579; S.wallet.vesting = 0; closeSheet(); render(false); toast('Зачислено 4 579 DEMOS'); };
-A['withdraw-do'] = () => { if (!S.wallet.ton){ S.wallet.ton='UQB…3fA2'; render(false); return toast('Кошелёк подключён (тест)'); } toast('Вывод отправлен (тест)'); S.wallet.available = 0; back(); };
+A['withdraw-do'] = () => { if (!S.wallet.ton){ S.wallet.ton='UQB…3fA2'; render(false); return toast('Кошелёк подключён (тест)'); }
+  const out = netOut(); S.lots = []; S.myX3d.forEach(x=>{ if (x.st==='На счёте') x.st='Выведено'; }); toast(`Отправлено ${fmt(out)} DEMOS на кошелёк (тест)`); back(); };
 
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-a]'); if (!el || !$app.contains(el)) return;
