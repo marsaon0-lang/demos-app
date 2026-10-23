@@ -139,7 +139,9 @@ input,textarea{font:inherit;color:inherit}
 .amounts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .amt{height:44px;border-radius:12px;background:var(--bg-raised);font-weight:600;border:1.5px solid transparent}
 .amt.on{border-color:var(--b-accent);background:var(--bg-accent-soft);color:var(--t-accent)}
-.check{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--t-secondary);cursor:pointer}
+.check{display:flex;gap:10px;align-items:center;width:100%;min-height:44px;padding:4px 0;text-align:left;font-size:13px;line-height:1.35;color:var(--t-secondary);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.check *{pointer-events:none}
+.fine{font-size:11px;line-height:1.4}
 .check .bx{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--t-muted);flex-shrink:0;display:grid;place-items:center}
 .check.on .bx{background:var(--bg-accent);border-color:var(--bg-accent)}
 .check.on .bx::after{content:"";width:10px;height:6px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translate(1px,-1px)}
