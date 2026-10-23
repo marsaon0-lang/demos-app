@@ -730,7 +730,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · версия 0.24 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · версия 0.25 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Вся сумма превращается в DEMOS на вашем счёте. Это не обещание дохода.</div>
@@ -834,6 +834,19 @@ SHEETS.tipEdit = p => { const l = S.lots[p.i]; if (!l) return '';
    ${tipChooser(afterFee(l.demos), p.tip, p.tipCustom)}
    <button class="amt ${p.tip===0?'on':''}" style="height:40px" data-a="tip-pick" data-v="0">Без награды</button></div>
    <div class="foot"><button class="btn primary" data-a="tip-save">Сохранить</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
+SHEETS.priceChanged = p => { const d = (p.rate/p.old-1)*100, sign = d>0?'+':'−', pct = String(Math.abs(d).toFixed(1)).replace('.',',');
+  const was = p.amount*p.old, now = p.amount*p.rate;
+  return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:10px">
+   <div class="icon-circle" style="background:var(--bg-warning-soft);color:var(--t-warning)">!</div>
+   <div class="heading center">Цена DEMOS изменилась</div>
+   <div class="caption c-sec center">Пока вы выбирали, цена изменилась больше чем на 1%. Проверьте и подтвердите покупку ещё раз.</div>
+   <div><div class="kv"><span class="k">Было на экране</span><span class="v c-sec" style="font-weight:400">1 TON = ${fmt(p.old)} DEMOS</span></div>
+   <div class="kv"><span class="k">Сейчас</span><span class="v">1 TON = ${fmt(p.rate)} DEMOS <span class="${d>0?'c-suc':'c-warn'}">${sign}${pct}%</span></span></div>
+   <div class="kv"><div><div class="k">На ваш счёт</div><div class="fine c-mut">было ${fmt(was)} DEMOS</div></div><span class="v">≈ ${fmt(now)} DEMOS</span></div>
+   ${p.tip?`<div class="kv"><span class="k">Награда автору ${p.tip}%</span><span class="v">${fmt(tipOf(now, p.tip))} DEMOS</span></div>`:''}
+   <div class="kv"><span class="k">Сумма</span><span class="v">${p.amount} TON</span></div></div>
+   <div class="fine c-mut">Обмен пройдёт по новой цене. Если не подтвердить, ничего не спишется.</div></div>
+   <div class="foot"><button class="btn primary" data-a="price-confirm">Подтвердить и оплатить ${p.amount} TON</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
 SHEETS.paying = p => `<div class="grab"></div><div class="sc center" style="padding-top:10px"><div class="icon-circle" style="background:var(--bg-accent-soft);color:var(--t-accent)">⌛</div><div class="heading">Подтвердите в кошельке</div><div class="caption c-sec" style="margin:6px 0 16px">Откройте кошелёк и подтвердите оплату ${p.amount} TON. В тестовой версии оплата пройдёт сама.</div></div>`;
 SHEETS.boosted = p => { const t = byId(p.id), x = t.my.x3d;
   return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">✓</div><div class="heading">Вы поддержали Тропу</div>
@@ -1077,15 +1090,23 @@ A['tip-edit'] = el => { const i = +el.dataset.i, l = S.lots[i]; openSheet('tipEd
 A['tip-save'] = () => { const p = S.sheet.params, l = S.lots[p.i]; l.tip = tipValue(p); closeSheet(); render(false); toast(l.tip?`Награда автору: ${l.tip}%`:'Без награды автору'); };
 A['x3d-other'] = () => { const p = S.sheet.params; p.other = true; p.amount = +p.otherVal || 0; renderSheet(); const i=document.getElementById('x3d-other-in'); if(i) i.focus(); };
 A.resident = () => { S.residentOk = !S.residentOk; renderSheet(); };
-A['x3d-pay'] = el => { const id = el.dataset.id, a = S.sheet.params.amount || 10; S.residentDone = true; const tipNow = tipValue(S.sheet.params), rateNow = S.rate; // обмен по цене, которая была на экране в момент оплаты
+// оплата X3D. Перед отправкой в кошелёк сервер берёт свежую цену; если она ушла больше чем на 1% от цены на экране —
+// окно «Цена DEMOS изменилась», покупатель подтверждает ещё раз (решено 23.10). В тестовой версии свежая цена условно сдвигается до ±2%.
+const PRICE_TOLERANCE = 1; // %
+const freshQuote = () => Math.max(1, Math.round(S.rate*(1+(Math.random()*4-2)/100)));
+A['x3d-pay'] = el => { const id = el.dataset.id, a = S.sheet.params.amount || 10; S.residentDone = true;
+  const tip = tipValue(S.sheet.params), shown = S.rate, fresh = freshQuote();
+  if (Math.abs(fresh/shown-1)*100 > PRICE_TOLERANCE){ haptic('medium'); return openSheet('priceChanged', {id, amount:a, tip, old:shown, rate:fresh}); }
+  doPay(id, a, tip, shown); };
+A['price-confirm'] = () => { const p = S.sheet.params; S.rate = p.rate; S.rateAt = Date.now(); doPay(p.id, p.amount, p.tip, p.rate); };
+function doPay(id, a, tip, rate){
   openSheet('paying', {amount:a});
-  setTimeout(()=>{ const t = byId(id); const demos = a*rateNow;
-    t.my.x3d = {amount:a, demos, viewed:0, fwd:0, at:Date.now()};
+  setTimeout(()=>{ const t = byId(id); const demos = a*rate;
+    t.my.x3d = {amount:a, demos, viewed:0, fwd:0, at:Date.now(), tip};
     if (!t.my.shared){ t.shares++; t.my.shared = true; } t.x3d++; t.my.subscribed = true;
-    const tip = tipNow; t.my.x3d.tip = tip;
     S.lots.push({at:Date.now(), demos, trail:id, title:t.frags[0].text.slice(0,34)+'…', ton:a, author:t.author, tip}); // каждая покупка — отдельно, для комиссии при выводе
     S.myX3d.unshift({title:t.frags[0].text.slice(0,34)+'…', st:'На счёте', info:`${a} TON`, rew:`${fmt(demos)} DEMOS`});
-    haptic('heavy'); openSheet('boosted', {id}); refreshCard(id); }, 1400); };
+    haptic('heavy'); openSheet('boosted', {id}); refreshCard(id); }, 1400); }
 function simulateBoost(id){ const t = byId(id); const iv = setInterval(()=>{ const x = t.my.x3d; if(!x){clearInterval(iv);return;}
   x.viewed = Math.min(36, x.viewed + 3 + Math.floor(Math.random()*4)); if (Math.random()>.55) x.fwd = Math.min(6, x.fwd+1);
   if (!S.sheet) refreshCard(id); if (x.viewed>=36 && x.fwd>=6) clearInterval(iv); }, 4000); }
