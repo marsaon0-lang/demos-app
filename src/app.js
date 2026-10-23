@@ -19,7 +19,7 @@ const S = {
   trails: TRAILS.map(t => ({...t, my:{shared:false, x3d:null, tagAdded:false, subscribed:false, frag:0, seen:new Set([0]), thanked:false, expanded:false}})),
   myTrails: MY_TRAILS.map(t => ({...t, my:{frag:0, seen:new Set([0])}})),
   subs: new Set(store.get('subs', ['Москва','Хамовники','Помощь','Животные','ЖКХ','Дети','Дороги'])),
-  residentOk: false, rate: 300, rateAt: Date.now(), firstTrail: true, createdToday: false, lastAddAt: 0,
+  residentOk: false, sentThanks: [], rate: 300, rateAt: Date.now(), firstTrail: true, createdToday: false, lastAddAt: 0,
   wallet: {ton:null},
   // счёт DEMOS: каждая покупка X3D — отдельная партия со своей датой (стейкинг считается по каждой партии)
   lots: [{at:Date.now()-15.2*86400000, demos:3000, title:'Пропал пёс Рони', ton:10, author:'boris', tip:5},{at:Date.now()-4.3*86400000, demos:1500, title:'Прорвало трубу на Профсоюзной', ton:5, author:'dom43_profsoyuznaya', tip:0},{at:Date.now()-0.6*86400000, demos:300, title:'Перекрыли полосы на Пироговской', ton:1, author:'semyon_p', tip:10}],
@@ -287,12 +287,21 @@ function walletHTML(){
     ${S.myX3d.map(x=>`<div class="kv"><div><div class="strong">${esc(x.title)}</div><div class="caption c-mut">${x.info}</div></div><div style="text-align:right"><span class="badge ${x.st==='На счёте'?'acc':'mut'}">${x.st}</span><div class="caption c-sec">${x.rew}</div></div></div>`).join('')}
     <div class="strong" style="margin-top:6px">Вы как автор</div>
     <div class="kv"><div><div>Получено от зрителей</div><div class="caption c-mut">за 30 дней · обновляется сразу</div></div><span class="strong">3 260 DEMOS</span></div>
-    <div class="kv"><div><div>Вас поблагодарили</div><div class="caption c-mut">разово, за ваши Тропы</div></div><span class="strong">37 человек</span></div>
-    <div class="box" style="margin-top:6px"><div class="strong">Пригласите друзей</div><div class="caption c-sec" style="margin:4px 0 8px">1% от каждого их буста X3D — вам в TON, сразу. Действует 6 месяцев с момента, как друг пришёл по ссылке.</div>
+    <button class="kv" style="width:100%;text-align:left" data-a="go" data-to="thanks"><div><div>Благодарности</div><div class="caption c-mut">37 человек · с сообщениями</div></div><span class="c-acc">Открыть ›</span></button>
+    <div class="box" style="margin-top:6px"><div class="strong">Пригласите друзей</div><div class="caption c-sec" style="margin:4px 0 8px">1% от каждого их буста X3D и благодарности — вам в TON через 14 дней после покупки друга. Действует 6 месяцев с момента, как друг пришёл по ссылке.</div>
       <button class="caption c-acc" style="text-align:left" data-a="go" data-to="referrals">Приглашено ${REFERRAL.friends.length} · получено ${refTotal()} TON  →</button>
       <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><div class="field" style="flex:1;padding:10px 12px"><span class="caption">t.me/demos_bot?start=marsaon</span></div><button class="btn secondary" style="width:auto;padding:0 14px;height:42px;font-size:14px" data-a="copy">Копировать</button></div></div></div>`;
 }
 
+// Благодарности автору — в личном кабинете (решено 23.10): кто, сколько, за какую Тропу, сообщение. Ответа внутри DEMOS нет — можно написать человеку в Telegram или соцсетях.
+SCREENS.thanks = () => `<div class="screen">${topbar('Благодарности')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:12px;padding-bottom:24px">
+  <div class="box center" style="padding:18px"><div class="caption c-sec">Вас поблагодарили</div><div style="display:flex;justify-content:center;align-items:baseline;gap:6px;margin-top:4px"><span class="title" style="font-size:32px">37</span><span class="c-sec">человек</span></div><div class="caption c-sec">11 100 DEMOS за 30 дней</div></div>
+  <div class="caption c-mut">Сообщения приходят в одну сторону. Чтобы ответить, нажмите на ник — там Telegram и соцсети человека. DEMOS от благодарностей лежат на счёте 14 дней, вывод с комиссией 6%.</div>
+  ${THANKS.map(th=>{ const tr = byId(th.trail); return `<div class="box" style="display:flex;flex-direction:column;gap:6px">
+    <div class="top" style="display:flex;justify-content:space-between;align-items:center"><button class="strong c-acc" data-a="person" data-v="${esc(th.from)}">@${esc(th.from)}</button><span class="strong c-suc">+${fmt(th.demos)} DEMOS</span></div>
+    <div class="caption c-mut">${th.at} · ${tonStr(th.ton)} TON · ${tr?esc(tr.frags[0].text.slice(0,40))+'…':''}</div>
+    ${th.text?`<div class="body">${esc(th.text)}</div>`:'<div class="caption c-mut">Без сообщения</div>'}</div>`; }).join('')}
+  <div class="caption c-mut center">Ещё 33 благодарности — в рабочей версии</div></div></div>`;
 SCREENS.trail = () => { const t = byId(S.params.id); return `<div class="screen">${topbar(t.own?'Ваша Тропа':'Тропа')}<div class="feed">${cardHTML(t)}</div></div>`; };
 
 // ---------- приглашённые ----------
@@ -305,7 +314,7 @@ function refLeft(f){ const d = new Date(f.joined+'T00:00:00'); const end = new D
 SCREENS.referrals = () => { const fr = REFERRAL.friends;
   return `<div class="screen">${topbar('Приглашённые')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="box center" style="padding:20px"><div class="caption c-sec">Получено от приглашённых</div><div style="display:flex;justify-content:center;align-items:baseline;gap:6px;margin-top:4px"><span class="title" style="font-size:36px">${refTotal()}</span><span class="c-sec">TON · ${fr.length} ${fr.length===1?'друг':fr.length<5?'друга':'друзей'}</span></div></div>
-  <div class="caption c-sec">1% от каждого буста X3D приглашённого — вам в TON сразу. По каждому другу действует 6 месяцев с момента, как он пришёл по вашей ссылке.</div>
+  <div class="caption c-sec">1% от каждого буста X3D и благодарности приглашённого — вам в TON через 14 дней после его покупки. По каждому другу действует 6 месяцев с момента, как он пришёл по вашей ссылке.</div>
   <div class="strong">Друзья</div>
   <div>${fr.map(f=>{ const d=new Date(f.joined+'T00:00:00'); const left=refLeft(f);
     return `<div class="kv"><div><div class="strong">@${esc(f.nick)}</div><div class="caption ${left?'c-mut':'c-warn'}">${f.she?'пришла':'пришёл'} ${d.getDate()} ${MONTHS_GEN[d.getMonth()]} · ${left?`осталось ${left} мес`:'срок истёк'}</div></div><span class="strong c-suc">+${tonFmt(refEarned(f.nick))} TON</span></div>`; }).join('')}</div>
@@ -320,19 +329,19 @@ SCREENS.withdraw = () => { const bal = readyBal(), out = netOut();
   <div class="kv"><span class="k">Награда авторам</span><span class="v">${fmt(tipsTotal())} DEMOS</span></div>
   <div class="kv"><span class="k">Комиссия всего</span><span class="v">${fmt(bal-out-tipsTotal())} DEMOS</span></div>
   <div class="kv"><span class="k">Кошелёк</span><span class="v">${S.wallet.ton||'не подключён'}</span></div>
-  <div class="caption c-mut">Выводятся покупки, которым уже 14 дней, комиссия — 6%. Награда автору передаётся при выводе — её можно изменить прямо здесь. Сеть TON возьмёт около 0,05 TON. В тестовой версии вывод условный.</div></div>
-  <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))"><button class="btn primary" data-a="withdraw-do" ${bal?'':'disabled'}>${S.wallet.ton?`Вывести ${fmt(out)} DEMOS`:'Подключить кошелёк'}</button></div></div>`; };
+  <div class="caption c-mut">Выводятся покупки, которым уже 14 дней, комиссия — 6%, минимум — 1 TON. Награда автору передаётся при выводе — её можно изменить прямо здесь. Сеть TON возьмёт около 0,05 TON. В тестовой версии вывод условный.</div></div>
+  <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))">${out<S.rate?`<div class="caption c-warn center" style="margin-bottom:8px">Минимум для вывода — 1 TON (≈ ${fmt(S.rate)} DEMOS)</div>`:''}<button class="btn primary" data-a="withdraw-do" ${bal&&out>=S.rate?'':'disabled'}>${S.wallet.ton?`Вывести ${fmt(out)} DEMOS`:'Подключить кошелёк'}</button></div></div>`; };
 
 SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:18px;padding-bottom:24px">
   <div class="title" style="font-size:26px;line-height:1.3;margin:10px 0">Правда —<br>это мнение, выдержавшее<br>равную конкуренцию</div>
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · версия 0.29 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · версия 0.30 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Вся сумма превращается в DEMOS на вашем счёте. Это не обещание дохода.</div>
-  ${[['1. Оплата','1, 10 или 100 TON.'],['2. Обмен','Вся сумма сразу превращается в DEMOS по текущей цене. Цена в окне оплаты обновляется автоматически каждые 60 секунд; обмен — по цене, которая была на экране в момент оплаты.'],['3. Счёт','DEMOS лежат на вашем счёте в приложении. Каждая покупка хранится отдельно.'],['4. Вывод','Вывести DEMOS на свой кошелёк можно через 14 дней после покупки. Комиссия — 6%.'],['5. Охват','Одинаковый при любой сумме: +36 человек. Сумма влияет только на количество DEMOS и на Money Trust Тропы.'],['6. Приглашения','Пригласивший получает 1% от каждого X3D друга в TON — 6 месяцев. Это платит платформа, у вас ничего не удерживается.'],['7. Пилот','На пилоте DEMOS — внутренние очки, вывода на кошелёк ещё нет.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="caption c-sec">${b[1]}</div></div>`).join('')}
+  ${[['1. Оплата','1, 10 или 100 TON.'],['2. Обмен','Вся сумма сразу превращается в DEMOS по текущей цене. Цена в окне оплаты обновляется автоматически каждые 60 секунд; обмен — по цене, которая была на экране в момент оплаты.'],['3. Счёт','DEMOS лежат на вашем счёте в приложении. Каждая покупка хранится отдельно.'],['4. Вывод','Вывести DEMOS на свой кошелёк можно через 14 дней после покупки. Комиссия — 6%.'],['5. Охват','Одинаковый при любой сумме: +36 человек. Сумма влияет только на количество DEMOS и на Money Trust Тропы.'],['6. Приглашения','Пригласивший получает 1% от каждого X3D и благодарности друга в TON — через 14 дней после покупки, 6 месяцев. Это часть комиссии платформы, у вас ничего не удерживается.'],['7. Пилот','На пилоте DEMOS — внутренние очки, вывода на кошелёк ещё нет.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="caption c-sec">${b[1]}</div></div>`).join('')}
   <div class="box"><div class="strong">Пример</div><div class="caption c-sec">Вы оплатили 10 TON. По курсу 1 TON = 300 DEMOS на ваш счёт придёт 3 000 DEMOS. Через 14 дней их можно вывести: 2 820 DEMOS на кошелёк после комиссии 6%. Курс в примере условный.</div></div>
   <div class="caption c-mut">Цена DEMOS не гарантируется. X3D и вывод недоступны в некоторых странах.</div></div></div>`;
 
@@ -404,7 +413,7 @@ const priceLeft = () => Math.max(0, PRICE_EVERY - Math.floor((Date.now()-S.rateA
 const mmss = n => `${Math.floor(n/60)}:${String(n%60).padStart(2,'0')}`;
 setInterval(() => {
   if (Date.now()-S.rateAt >= PRICE_EVERY*1000){ S.rate = Math.max(1, Math.round(S.rate*(1+(Math.random()*2-1)/100))); S.rateAt = Date.now();
-    if (S.sheet && S.sheet.name==='x3d' && !(document.activeElement && document.activeElement.tagName==='INPUT')) renderSheet(); }
+    if (S.sheet && (S.sheet.name==='x3d'||S.sheet.name==='thank') && !(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) renderSheet(); }
   const el = document.getElementById('rate-left'); if (el) el.textContent = mmss(priceLeft());
 }, 1000);
 const NFT_TIERS = [{ton:1, g:['#1d4ed8','#3DB4FF']}, {ton:10, g:['#6d28d9','#3D8BFF']}, {ton:100, g:['#b45309','#f5a524']}];
@@ -433,18 +442,18 @@ SHEETS.tipEdit = p => { const l = S.lots[p.i]; if (!l) return '';
    <button class="amt ${p.tip===0?'on':''}" style="height:40px" data-a="tip-pick" data-v="0">Без награды</button></div>
    <div class="foot"><button class="btn primary" data-a="tip-save">Сохранить</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
 SHEETS.priceChanged = p => { const d = (p.rate/p.old-1)*100, sign = d>0?'+':'−', pct = String(Math.abs(d).toFixed(1)).replace('.',',');
-  const was = p.amount*p.old, now = p.amount*p.rate;
+  const was = Math.round(p.amount*p.old), now = Math.round(p.amount*p.rate);
   return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:10px">
    <div class="icon-circle" style="background:var(--bg-warning-soft);color:var(--t-warning)">!</div>
    <div class="heading center">Цена DEMOS изменилась</div>
    <div class="caption c-sec center">Пока вы выбирали, цена изменилась больше чем на 1%. Проверьте и подтвердите покупку ещё раз.</div>
    <div><div class="kv"><span class="k">Было на экране</span><span class="v c-sec" style="font-weight:400">1 TON = ${fmt(p.old)} DEMOS</span></div>
    <div class="kv"><span class="k">Сейчас</span><span class="v">1 TON = ${fmt(p.rate)} DEMOS <span class="${d>0?'c-suc':'c-warn'}">${sign}${pct}%</span></span></div>
-   <div class="kv"><div><div class="k">На ваш счёт</div><div class="fine c-mut">было ${fmt(was)} DEMOS</div></div><span class="v">≈ ${fmt(now)} DEMOS</span></div>
-   ${p.tip?`<div class="kv"><span class="k">Награда автору ${p.tip}%</span><span class="v">${fmt(tipOf(now, p.tip))} DEMOS</span></div>`:''}
-   <div class="kv"><span class="k">Сумма</span><span class="v">${p.amount} TON</span></div></div>
+   <div class="kv"><div><div class="k">${p.kind==='thank'?'Автору на счёт':'На ваш счёт'}</div><div class="fine c-mut">было ${fmt(was)} DEMOS</div></div><span class="v">≈ ${fmt(now)} DEMOS</span></div>
+   ${p.kind!=='thank'&&p.tip?`<div class="kv"><span class="k">Награда автору ${p.tip}%</span><span class="v">${fmt(tipOf(now, p.tip))} DEMOS</span></div>`:''}
+   <div class="kv"><span class="k">Сумма</span><span class="v">${tonStr(p.amount)} TON</span></div></div>
    <div class="fine c-mut">Обмен пройдёт по новой цене. Если не подтвердить, ничего не спишется.</div></div>
-   <div class="foot"><button class="btn primary" data-a="price-confirm">Подтвердить и оплатить ${p.amount} TON</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
+   <div class="foot"><button class="btn primary" data-a="price-confirm">Подтвердить и оплатить ${tonStr(p.amount)} TON</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
 SHEETS.paying = p => `<div class="grab"></div><div class="sc center" style="padding-top:10px"><div class="icon-circle" style="background:var(--bg-accent-soft);color:var(--t-accent)">⌛</div><div class="heading">Подтвердите в кошельке</div><div class="caption c-sec" style="margin:6px 0 16px">Откройте кошелёк и подтвердите оплату ${p.amount} TON. В тестовой версии оплата пройдёт сама.</div></div>`;
 SHEETS.boosted = p => { const t = byId(p.id), x = t.my.x3d;
   return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">✓</div><div class="heading">Вы поддержали Тропу</div>
@@ -472,13 +481,29 @@ SHEETS.author = p => { const t = byId(p.id), a = AUTHORS[t.author] || {city:'М�
    <div><div class="heading">@${t.author}</div><div class="caption c-sec">${a.city}</div></div><div class="body">${esc(a.about)}</div>
    ${a.socials.length?`<div class="caption c-mut" style="margin-top:4px">Соцсети автора</div>${a.socials.map(s=>`<button class="kv" style="width:100%;text-align:left" data-a="link" data-v="${s[2]}"><span><span class="strong">${s[0]} · ${s[1]}</span></span><span class="c-acc">›</span></button>`).join('')}`:''}</div>
    <div class="foot">${t.my.thanked?'<div class="caption c-mut center">Вы уже поблагодарили автора за эту Тропу</div>':`<button class="btn primary" data-a="sheet" data-s="thank" data-id="${t.id}">Поблагодарить автора</button>`}</div>`; };
-SHEETS.thank = p => { const t = byId(p.id), v = p.v;
-  return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px"><div class="heading">Поблагодарить @${t.author}</div>
-   <div class="caption c-sec">С вашего счёта: ${fmt(balance())} DEMOS. Сколько отправите — столько автор и получит.</div>
-   <div class="amounts">${[50,100,250].map(x=>`<button class="amt ${v===x?'on':''}" data-a="thank-v" data-id="${t.id}" data-v="${x}">${x}</button>`).join('')}<button class="amt" data-a="toast" data-m="В рабочей версии — ввод своей суммы">Своя</button></div>
-   <div class="caption c-acc">100 DEMOS — рекомендуемая сумма</div></div>
-   <div class="foot"><button class="btn primary" data-a="thank-send" data-id="${t.id}" ${v?'':'disabled'}>${v?`Отправить ${v} DEMOS`:'Отправить'}</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
-SHEETS.thanked = p => { const t = byId(p.id); return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">♥</div><div class="heading">Спасибо, что поблагодарили</div><div class="caption c-sec">@${t.author} получил ${p.v} DEMOS за эту Тропу.</div>
+const THANK_OPTS = [1,10,100];
+const tonStr = n => String(Math.round(n*100)/100).replace('.',',');
+const thankTon = p => p.v==='custom' ? (parseFloat(String(p.custom||'').replace(',','.'))||0) : (p.v||0);
+const resBox = () => S.residentDone?'':`<button type="button" class="check ${S.residentOk?'on':''}" data-a="resident"><span class="bx"></span><span>Я согласен с тем, что цена не гарантируется, и подтверждаю, что не являюсь резидентом страны из списка ограничений</span></button>`;
+// благодарность автору (решено 23.10): отдельная покупка DEMOS от 1 TON + сообщение до 500 знаков; автор видит ник и сообщение, ответа внутри DEMOS нет
+SHEETS.thank = p => { const t = byId(p.id), v = thankTon(p), ok = v>=1;
+  return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
+   <div class="heading">Поблагодарить @${esc(t.author)}</div>
+   <div class="caption c-sec">Отдельная покупка: TON превращаются в DEMOS по текущей цене и уходят автору. Минимум 1 TON.</div>
+   <div class="kv"><div><div class="k">Цена DEMOS</div><div class="fine c-mut">обновится через <span id="rate-left">${mmss(priceLeft())}</span></div></div><span class="v">1 TON = ${fmt(S.rate)} DEMOS</span></div>
+   <div class="amounts">${THANK_OPTS.map(x=>`<button class="amt tipb ${p.v===x?'on':''}" data-a="thank-v" data-v="${x}"><span>${x} TON</span><small>${fmt(x*S.rate)}</small></button>`).join('')}<button class="amt tipb ${p.v==='custom'?'on':''}" data-a="thank-v" data-v="custom"><span>Своя</span><small id="thank-small">${p.v==='custom'&&ok?fmt(Math.round(v*S.rate)):'от 1 TON'}</small></button></div>
+   ${p.v==='custom'?`<div class="field" style="display:flex;gap:8px;align-items:center"><input id="thank-custom" type="text" inputmode="decimal" maxlength="7" placeholder="Сумма, от 1 TON" value="${esc(p.custom||'')}" data-input="thank-custom"><span class="c-sec">TON</span></div>`:''}
+   <div><div style="display:flex;justify-content:space-between"><span class="caption c-sec">Сообщение автору · необязательно</span><span class="caption c-mut" id="thank-cnt">${(p.text||'').length}/500</span></div>
+   <div class="field"><textarea maxlength="500" rows="3" data-input="thank-text" placeholder="Напишите, за что благодарите">${esc(p.text||'')}</textarea></div></div>
+   <div class="kv"><span class="k">Автору на счёт</span><span class="v" id="thank-out">${ok?'≈ '+fmt(Math.round(v*S.rate))+' DEMOS':'—'}</span></div>
+   <div class="fine c-mut">Автор увидит ваш ник и сообщение и сможет написать вам в Telegram или соцсетях из вашего профиля. Ответа внутри DEMOS нет. DEMOS лежат у автора 14 дней, комиссия 6% — при выводе. В Money Trust благодарность не входит. Цена DEMOS не гарантируется.</div></div>
+   <div class="foot">${resBox()}<button class="btn primary" id="thank-pay" data-a="thank-pay" data-id="${t.id}" ${ok&&(S.residentOk||S.residentDone)?'':'disabled'}>${ok?`Оплатить ${tonStr(v)} TON`:'Выберите сумму'}</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
+SHEETS.person = p => { const a = PEOPLE[p.nick] || AUTHORS[p.nick] || {city:'',about:'',socials:[]};
+  return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:10px">
+   <div><div class="heading">@${esc(p.nick)}</div><div class="caption c-sec">${esc(a.city||'')}</div></div>${a.about?`<div class="body">${esc(a.about)}</div>`:''}
+   ${a.socials.length?`<div class="caption c-mut" style="margin-top:4px">Соцсети</div>${a.socials.map(s=>`<button class="kv" style="width:100%;text-align:left" data-a="link" data-v="${s[2]}"><span><span class="strong">${s[0]} · ${s[1]}</span></span><span class="c-acc">›</span></button>`).join('')}`:'<div class="caption c-mut">Соцсети не указаны</div>'}</div>
+   <div class="foot"><button class="btn ghost" data-a="close">Закрыть</button></div>`; };
+SHEETS.thanked = p => { const t = byId(p.id); return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">♥</div><div class="heading">Спасибо, что поблагодарили</div><div class="caption c-sec">@${t.author} получит ${fmt(p.v)} DEMOS${p.ton?` (${tonStr(p.ton)} TON)`:''} за эту Тропу.</div>${p.text?`<div class="box caption" style="text-align:left"><span class="c-mut">Ваше сообщение</span><br>${esc(p.text)}</div>`:''}
    <div class="box" style="text-align:left"><div class="kv"><span class="k">Поблагодарили за эту Тропу</span><span class="v">38 человек</span></div><div class="kv"><span class="k">Всего благодарностей</span><span class="v c-suc">12 896 DEMOS</span></div></div>
    <div class="caption c-mut">Поблагодарить за одну Тропу можно один раз — кнопки больше не появятся.</div></div><div class="foot"><button class="btn primary" data-a="close">Готово</button></div>`; };
 SHEETS.menu = p => { const t = byId(p.id);
@@ -696,7 +721,13 @@ A['x3d-pay'] = el => { const id = el.dataset.id, a = S.sheet.params.amount || 10
   const tip = tipValue(S.sheet.params), shown = S.rate, fresh = freshQuote();
   if (Math.abs(fresh/shown-1)*100 > PRICE_TOLERANCE){ haptic('medium'); return openSheet('priceChanged', {id, amount:a, tip, old:shown, rate:fresh}); }
   doPay(id, a, tip, shown); };
-A['price-confirm'] = () => { const p = S.sheet.params; S.rate = p.rate; S.rateAt = Date.now(); doPay(p.id, p.amount, p.tip, p.rate); };
+A['price-confirm'] = () => { const p = S.sheet.params; S.rate = p.rate; S.rateAt = Date.now(); if (p.kind==='thank') doThank(p.id, p.amount, p.text, p.rate); else doPay(p.id, p.amount, p.tip, p.rate); };
+A['thank-pay'] = () => { const p = S.sheet.params, v = thankTon(p); if (v<1) return; S.residentDone = true; const shown = S.rate, fresh = freshQuote();
+  if (Math.abs(fresh/shown-1)*100 > PRICE_TOLERANCE){ haptic('medium'); return openSheet('priceChanged', {kind:'thank', id:p.id, amount:v, text:p.text||'', old:shown, rate:fresh}); }
+  doThank(p.id, v, p.text||'', shown); };
+function doThank(id, ton, text, rate){ openSheet('paying', {amount:tonStr(ton)});
+  setTimeout(()=>{ const t = byId(id), demos = Math.round(ton*rate); t.my.thanked = true; S.sentThanks.unshift({to:t.author, trail:id, ton, demos, text});
+    haptic('heavy'); openSheet('thanked', {id, v:demos, ton, text}); }, 1400); }
 function doPay(id, a, tip, rate){
   openSheet('paying', {amount:a});
   setTimeout(()=>{ const t = byId(id); const demos = a*rate;
@@ -718,10 +749,9 @@ A['send-comment'] = el => { const i = document.getElementById('cmt'); const v = 
   const t = byId(el.dataset.id); t.comments++; renderSheet(); refreshCard(t.id); };
 A['del-comment'] = el => { const id = +el.dataset.v; S.comments = S.comments.filter(c=>c.id!==id).map(c=>({...c, replies:c.replies.filter(r=>r.id!==id)})); renderSheet(); };
 A.author = el => openSheet('author', {id:el.dataset.id});
+A.person = el => openSheet('person', {nick:el.dataset.v});
 A.sheet = el => openSheet(el.dataset.s, {id:el.dataset.id});
-A['thank-v'] = el => { S.sheet.params.v = +el.dataset.v; renderSheet(); };
-A['thank-send'] = el => { const t = byId(el.dataset.id), v = S.sheet.params.v; if (v > balance()) return toast('Недостаточно DEMOS на счёте');
-  let left = v; for (let k=S.lots.length-1; k>=0 && left>0; k--){ const take = Math.min(left, S.lots[k].demos); S.lots[k].demos -= take; left -= take; } S.lots = S.lots.filter(l=>l.demos>0); t.my.thanked = true; openSheet('thanked', {id:t.id, v}); };
+A['thank-v'] = el => { const p = S.sheet.params, v = el.dataset.v; p.v = v==='custom' ? 'custom' : (p.v===+v ? null : +v); renderSheet(); if (v==='custom'){ const i=document.getElementById('thank-custom'); if(i) i.focus(); } };
 A.link = el => { const u = el.dataset.v; try{ tg ? tg.openLink(u) : window.open(u,'_blank'); }catch(e){} };
 A.menu = el => openSheet('menu', {id:el.dataset.id});
 A['report-do'] = () => { closeSheet(); toast('Жалоба отправлена модераторам'); };
@@ -794,6 +824,11 @@ document.addEventListener('input', e => {
     set('x3d-big', ok ? n : '—'); set('x3d-max', `до ${fmt(c.max)} DEMOS`); set('x3d-min', `${fmt(c.min)} DEMOS`);
     const err = document.getElementById('x3d-err'); if (err) err.className = 'caption ' + (ok || !clean ? 'c-mut' : 'c-warn');
     const pay = document.getElementById('x3d-pay'); if (pay){ pay.disabled = !(ok && (S.residentOk||S.residentDone)); pay.textContent = ok ? `Оплатить ${n} TON` : 'Введите сумму'; } }
+  if (k==='thank-text'){ S.sheet.params.text = e.target.value.slice(0,500); const c = document.getElementById('thank-cnt'); if (c) c.textContent = `${S.sheet.params.text.length}/500`; }
+  if (k==='thank-custom'){ const p = S.sheet.params; let clean = e.target.value.replace(/[^\d.,]/g,'').replace(/([.,].*)[.,]/,'$1'); if (clean!==e.target.value) e.target.value = clean; p.custom = clean;
+    const v = thankTon(p), ok = v>=1; const set=(id,t)=>{const el=document.getElementById(id); if(el) el.textContent=t;};
+    set('thank-out', ok?'≈ '+fmt(Math.round(v*S.rate))+' DEMOS':'—'); set('thank-small', ok?fmt(Math.round(v*S.rate)):'от 1 TON');
+    const b = document.getElementById('thank-pay'); if (b){ b.disabled = !(ok && (S.residentOk||S.residentDone)); b.textContent = ok?`Оплатить ${tonStr(v)} TON`:'Выберите сумму'; } }
   if (k==='addtag-q'){ S.sheet.params.q = e.target.value; clearTimeout(S._qt); S._qt = setTimeout(()=>{ renderSheet(); const i = document.getElementById('addtag-q'); if(i){ i.focus(); const L=i.value.length; i.setSelectionRange(L,L);} }, 250); }
 });
 document.addEventListener('change', e => {

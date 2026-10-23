@@ -124,3 +124,18 @@ const REFERRAL = {
     {friend:'olga_v',  date:'2026-04-10', boost:'X3D', paid:26.67, amount:0.27, cur:'TON', mode:'points'}
   ]
 };
+
+// Люди, которые благодарили (для окна «Благодарности» и профиля человека). Соцсети видны всем.
+const PEOPLE = {
+  anna_k:{city:'Москва', about:'Живу в Хамовниках, помогаю искать потерявшихся животных', socials:[['Telegram','@anna_k','https://t.me/'],['Instagram','@anna.khm','https://instagram.com/']]},
+  kirill_t:{city:'Москва', about:'Папа двоих детей, гуляем на Плющихе', socials:[['Telegram','@kirill_t','https://t.me/']]},
+  'mark.msk':{city:'Москва', about:'', socials:[['VK','@mark.msk','https://vk.com/']]},
+  lena_park:{city:'Москва', about:'Волонтёр, субботники и озеленение', socials:[]}
+};
+// Благодарности автору @marsaon (решено 23.10): отдельная покупка от 1 TON, сообщение до 500 знаков, в одну сторону.
+const THANKS = [
+  {from:'anna_k', trail:'ply', ton:10, demos:3000, at:'сегодня, 14:20', text:'Спасибо, что не молчите! Мы с соседями тоже написали в управу — держите в курсе, пожалуйста.'},
+  {from:'kirill_t', trail:'ply', ton:1, demos:300, at:'вчера, 21:05', text:'Дети теперь гуляют во дворе напротив. Если нужна помощь с подписями — пишите в Telegram.'},
+  {from:'lena_park', trail:'nes', ton:3, demos:900, at:'21 октября', text:'Были на субботнике — классно организовали!'},
+  {from:'mark.msk', trail:'nes', ton:1, demos:300, at:'20 октября', text:''}
+];
