@@ -212,3 +212,6 @@ input,textarea{font:inherit;color:inherit}
 
 .lot{background:var(--bg-surface);border:1px solid var(--b-default);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
 .lot .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+
+.nft-img{display:flex;align-items:center;justify-content:center;aspect-ratio:1;max-width:100%}
+.nft-img img{height:100%;width:auto;max-width:100%;object-fit:contain;filter:drop-shadow(0 4px 10px rgba(0,0,0,.45))}

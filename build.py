@@ -2,7 +2,7 @@ import pathlib
 root = pathlib.Path(__file__).parent
 src = root/'src'
 css = (src/'styles.css').read_text(encoding='utf-8')
-js = '\n'.join((src/f).read_text(encoding='utf-8') for f in ['data.js','art.js','app.js'])
+js = '\n'.join((src/f).read_text(encoding='utf-8') for f in ['data.js','nft_images.js','art.js','app.js'])
 def page(tg):
     return f'''<!doctype html>
 <html lang="ru"><head><meta charset="utf-8">
