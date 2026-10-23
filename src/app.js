@@ -177,7 +177,7 @@ SCREENS.terms = () => `<div class="screen"><div class="scroll pad" style="displa
   <div class="body c-sec">DEMOS работает по правилам: без подписок на людей, одна новая Тропа в день, опубликованные Тропы не удаляются, незаконный контент модерируется.</div>
   ${['Условия использования','Политика конфиденциальности','Правила сообщества'].map(x=>`<div class="kv"><span>${x}</span><span class="c-acc caption">Открыть</span></div>`).join('')}
   <div class="check ${S.params.ok?'on':''}" data-a="terms-check"><span class="bx"></span><span>Я принимаю Условия использования, Политику конфиденциальности и Правила сообщества</span></div></div>
-  <div class="pad" style="padding-bottom:calc(24px + var(--safe-bottom))"><div class="dots" style="margin-bottom:16px"><i></i><i></i><i class="on"></i></div><button class="btn primary" data-a="ob-next" data-to="${WEB?'install':'geo'}" ${S.params.ok?'':'disabled'}>Принять и продолжить</button></div></div>`;
+  <div class="pad" style="padding-bottom:calc(24px + var(--safe-bottom))"><div class="dots" style="margin-bottom:16px"><i></i><i></i><i class="on"></i></div><button class="btn primary" data-a="ob-next" data-to="${WEB?webAfterTerms():'geo'}" ${S.params.ok?'':'disabled'}>Принять и продолжить</button></div></div>`;
 SCREENS.geo = () => `<div class="screen"><div class="scroll pad" style="display:flex;flex-direction:column;justify-content:center;gap:14px">
   <div class="icon-circle" style="background:var(--bg-accent-soft);color:var(--t-accent);margin:0 0 8px">◎</div>
   <div class="title">Тропы рядом с вами</div>
@@ -206,7 +206,11 @@ const refLinkShort = () => refLink().replace(/^https?:\/\//,'');
 const isStandalone = () => { try{ return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; }catch(e){ return false; } };
 let installEvt = null;
 if (WEB){ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (S.screen==='install') render(false); });
-  window.addEventListener('appinstalled', () => { store.set('obStep','install'); if (S.screen==='install') go('opened', {}, false); }); }
+  window.addEventListener('appinstalled', () => { if (S.screen==='install') go('opened', {}, false); else if (S.screen==='main') render(false); }); }
+// установка — необязательна (решено 23.10): предлагается баннером в ленте; уведомления — обязательны там, где браузер их поддерживает (на iPhone — только после установки)
+const webAfterTerms = () => (typeof Notification!=='undefined') ? 'notifReq' : 'geoReq';
+const showInstallBanner = () => WEB && !isStandalone() && (Date.now() - (store.get('installHideAt', 0)||0) > 3*86400000);
+const installBanner = () => !showInstallBanner() ? '' : `<div class="install-banner"><span style="font-size:22px">📲</span><div style="flex:1;min-width:0"><div class="strong">Установите DEMOS</div><div class="caption c-sec">${isIOS?'Уведомления на iPhone приходят только после установки':'Запуск с главного экрана и уведомления'}</div></div><button class="badge acc" style="height:30px" data-a="install-open">Установить</button><button class="c-mut" style="padding:4px 2px 4px 6px;font-size:18px" data-a="install-hide" aria-label="Скрыть">✕</button></div>`;
 const inviteCode = () => (store.get('invitedBy', null) || {}).code || '';
 const obPage = (icon, title, body, actions, extra='') => `<div class="screen"><div class="scroll pad" style="display:flex;flex-direction:column;justify-content:center;gap:14px;text-align:center">
   <div class="icon-circle" style="background:var(--bg-accent-soft);color:var(--t-accent)">${icon}</div><div class="title">${title}</div><div class="body c-sec">${body}</div>${extra}</div>
@@ -214,16 +218,16 @@ const obPage = (icon, title, body, actions, extra='') => `<div class="screen"><d
 SCREENS.invite = () => obPage('🔒','DEMOS — только по приглашению', isStandalone()&&isIOS ? 'Вставьте код приглашения ещё раз — приложение на экране «Домой» не видит то, что было в Safari.' : 'Попросите ссылку у друга, который уже в DEMOS, или вставьте код приглашения.',
   `<button class="btn primary" data-a="invite-go">Войти</button>`,
   `<div class="field" style="text-align:left"><input id="invite-in" placeholder="Ссылка или код приглашения" autocapitalize="off" autocomplete="off"></div><div class="caption c-warn hidden" id="invite-err">Не похоже на ссылку или код приглашения</div>`);
-SCREENS.invited = () => obPage('🤝', `Вас пригласил @${esc(inviteCode())}`, 'DEMOS — биржа правды. Тропы приходят людям рядом и расходятся, только если их раздают. Дальше — три обязательных шага: установка, уведомления и геопозиция.',
+SCREENS.invited = () => obPage('🤝', `Вас пригласил @${esc(inviteCode())}`, 'DEMOS — биржа правды. Тропы приходят людям рядом и расходятся, только если их раздают. Дальше — уведомления и геопозиция: без них DEMOS не работает.',
   `<button class="btn primary" data-a="ob-next" data-to="ob1">Продолжить</button>`);
 SCREENS.install = () => isIOS
-  ? obPage('📲','Добавьте DEMOS на экран «Домой»','Без установки DEMOS не работает: так приходят уведомления и приложение открывается с главного экрана, как обычное.',
-    `<button class="btn primary" data-a="install-ios">Я добавил — открыть с экрана «Домой»</button>`,
+  ? obPage('📲','Добавьте DEMOS на экран «Домой»','Так DEMOS открывается с главного экрана, как обычное приложение, и надёжнее приходят уведомления.',
+    `<button class="btn primary" data-a="install-ios">Я добавил — открыть с экрана «Домой»</button><button class="btn ghost" data-a="back">Позже</button>`,
     `<div class="box" style="text-align:left;display:flex;flex-direction:column;gap:8px"><div class="body">1. Нажмите «Поделиться» внизу Safari</div><div class="body">2. Выберите «На экран Домой»</div><div class="body">3. Нажмите «Добавить» и откройте DEMOS с главного экрана</div></div><div class="caption c-mut">Ваш код приглашения: <b class="nick">${esc(inviteCode())}</b> — если попросят, введите его.</div>`)
-  : obPage('📲','Установите DEMOS на телефон','Без установки DEMOS не работает: так приходят уведомления и приложение открывается с главного экрана, как обычное.',
-    installEvt ? `<button class="btn primary" data-a="install-do">Установить приложение</button>` : `<button class="btn primary" data-a="install-manual">Я установил — открыть с главного экрана</button>`,
+  : obPage('📲','Установите DEMOS на телефон','Так DEMOS открывается с главного экрана, как обычное приложение, и надёжнее приходят уведомления.',
+    (installEvt ? `<button class="btn primary" data-a="install-do">Установить приложение</button>` : `<button class="btn primary" data-a="install-manual">Я установил — открыть с главного экрана</button>`) + `<button class="btn ghost" data-a="back">Позже</button>`,
     installEvt ? '' : `<div class="box" style="text-align:left;display:flex;flex-direction:column;gap:8px"><div class="body">1. Откройте меню браузера ⋮</div><div class="body">2. Нажмите «Установить приложение» или «Добавить на главный экран»</div><div class="body">3. Откройте DEMOS с главного экрана</div></div>`);
-SCREENS.opened = () => obPage('✅','Готово — откройте DEMOS с главного экрана','Иконка DEMOS (белый треугольник) появилась на главном экране. Откройте приложение с неё — продолжим там.','');
+SCREENS.opened = () => obPage('✅','Готово — DEMOS на главном экране','Иконка DEMOS (белый треугольник) появилась на главном экране. Дальше открывайте приложение с неё.',`<button class="btn ghost" data-a="back">Вернуться в ленту</button>`);
 SCREENS.notifReq = () => obPage('🔔','Включите уведомления','Так вы узнаете, когда вам раздали Тропу рядом, когда в Тропе из ваших подписок появилось дополнение и когда вас поблагодарили. Без уведомлений DEMOS не работает.',
   `<button class="btn primary" data-a="notif-req">Включить уведомления</button>`);
 SCREENS.notifOff = () => obPage('⚠️','Уведомления выключены', isIOS ? 'Чтобы продолжить, разрешите уведомления: Настройки → Уведомления → DEMOS. Затем вернитесь сюда.' : 'Чтобы продолжить, разрешите уведомления для DEMOS: нажмите на значок слева от адреса или откройте Настройки → Приложения → DEMOS → Уведомления. Затем вернитесь сюда.',
@@ -247,7 +251,7 @@ SCREENS.main = () => {
   if (S.tab==='profile') return profileHTML();
   const header = `<header class="app-header"><div class="wordmark">DEMOS</div><div class="tabs"><button class="tab ${S.feedTab==='trails'?'on':''}" data-a="feedtab" data-t="trails">Тропы</button><button class="tab ${S.feedTab==='subs'?'on':''}" data-a="feedtab" data-t="subs">Подписки</button></div></header>`;
   const body = S.feedTab==='trails' ? `<div class="feed" id="feed">${allTrails().map(t=>cardHTML(t)).join('')}</div>` : `<div class="scroll">${subsHTML()}</div>`;
-  return `<div class="screen">${header}${body}${bottomNav()}</div>`;
+  return `<div class="screen">${header}${S.feedTab==='trails'?installBanner():''}${body}${bottomNav()}</div>`;
 };
 
 function subsHTML(){
@@ -390,7 +394,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':'веб'} · версия 0.35 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':'веб'} · версия 0.36 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Вся сумма превращается в DEMOS на вашем счёте. Это не обещание дохода.</div>
@@ -736,10 +740,12 @@ A['invite-go'] = () => { const v = (document.getElementById('invite-in')||{}).va
   try{ const u = new URL(v.trim()); code = u.searchParams.get('ref') || u.searchParams.get('startapp') || u.searchParams.get('start') || ''; }catch(e){ code = v.trim(); }
   code = code.replace(/^@/,'').replace(/^ref_/,'');
   if (!/^[A-Za-z0-9_.]{3,32}$/.test(code)){ const er = document.getElementById('invite-err'); if (er) er.classList.remove('hidden'); return; }
-  store.set('invitedBy', {code, at:new Date().toISOString()}); keepRefInUrl(); go(isStandalone() && store.get('obStep','')==='install' ? 'notifReq' : 'invited', {}, false); };
-A['install-do'] = async () => { if (!installEvt) return render(false); installEvt.prompt(); try{ const c = await installEvt.userChoice; installEvt = null; if (c && c.outcome==='accepted'){ store.set('obStep','install'); go('opened', {}, false); } else render(false); }catch(e){ render(false); } };
-A['install-ios'] = () => { store.set('obStep','install'); go('opened', {}, false); };
-A['install-manual'] = () => { store.set('obStep','install'); go('opened', {}, false); };
+  store.set('invitedBy', {code, at:new Date().toISOString()}); keepRefInUrl(); go('invited', {}, false); };
+A['install-do'] = async () => { if (!installEvt) return render(false); installEvt.prompt(); try{ const c = await installEvt.userChoice; installEvt = null; if (c && c.outcome==='accepted') go('opened', {}, false); else render(false); }catch(e){ render(false); } };
+A['install-ios'] = () => { go('opened', {}, false); };
+A['install-manual'] = () => { go('opened', {}, false); };
+A['install-open'] = async () => { if (installEvt){ installEvt.prompt(); try{ const c = await installEvt.userChoice; installEvt = null; if (c && c.outcome==='accepted') toast('DEMOS установлен на главный экран'); }catch(e){} render(false); } else go('install'); };
+A['install-hide'] = () => { store.set('installHideAt', Date.now()); render(false); };
 A['notif-req'] = async () => { if (typeof Notification==='undefined'){ toast('Это устройство не поддерживает уведомления'); return go('geoReq', {}, false); }
   const m = await pushEnable(); if (PUSH.perm==='granted'){ go('geoReq', {}, false); toast(m); } else go('notifOff', {}, false); };
 A['notif-check'] = async () => { if (typeof Notification!=='undefined' && Notification.permission==='granted'){ const m = await pushEnable(); go('geoReq', {}, false); toast(m); } else toast('Уведомления всё ещё выключены'); };
@@ -977,7 +983,7 @@ try{ const sp = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param; if (sp
 // веб: код приглашения из ссылки ?ref=; держим его в адресе, чтобы установленное приложение открылось с ним
 function keepRefInUrl(){ try{ const c = inviteCode(); if (WEB && c && new URLSearchParams(location.search).get('ref')!==c) history.replaceState(null, '', location.pathname + '?ref=' + encodeURIComponent(c)); }catch(e){} }
 if (WEB){ try{ const q = new URLSearchParams(location.search).get('ref'); if (q && /^[A-Za-z0-9_.]{3,32}$/.test(q.replace(/^ref_/,'')) && !store.get('invitedBy', null)) store.set('invitedBy', {code:q.replace(/^ref_/,''), at:new Date().toISOString()}); }catch(e){} keepRefInUrl(); }
-const webStart = () => !inviteCode() ? 'invite' : (isStandalone() && store.get('obStep','')==='install') ? 'notifReq' : 'splash';
+const webStart = () => !inviteCode() ? 'invite' : 'splash';
 S.screen = S.onboarded ? 'main' : (WEB ? webStart() : 'splash');
 render(true);
 if (!S.onboarded && S.screen==='splash') setTimeout(()=>{ if (S.screen==='splash') go(WEB ? 'invited' : 'ob1', {}, false); }, 1800);

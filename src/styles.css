@@ -233,3 +233,4 @@ input,textarea{font:inherit;color:inherit}
 .mt-mini b{font-weight:700}
 .actions .row .btn{height:42px} /* Раздать и X3D · Буст — ниже (23.10) */
 .nick{color:var(--t-primary);font-weight:700}
+.install-banner{display:flex;align-items:center;gap:10px;margin:0 12px 8px;padding:10px 12px;border-radius:14px;background:var(--bg-surface);border:1px solid var(--b-default);flex-shrink:0}
