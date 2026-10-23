@@ -425,8 +425,8 @@ const S = {
   residentOk: false, rate: 300, rateAt: Date.now(), firstTrail: true, createdToday: false, lastAddAt: 0,
   wallet: {ton:null},
   // счёт DEMOS: каждая покупка X3D — отдельная партия со своей датой (стейкинг считается по каждой партии)
-  lots: [{at:Date.now()-15.2*86400000, demos:3000, title:'Пропал пёс Рони', ton:10, author:'boris', tip:5},{at:Date.now()-4.3*86400000, demos:1500, title:'Прорвало трубу на Профсоюзной', ton:5, author:'dom43_profsoyuznaya', tip:0},{at:Date.now()-0.6*86400000, demos:300, title:'Сломали площадку на Плющихе', ton:1, author:'semyon_p', tip:10}],
-  myX3d: [{title:'Пропал пёс Рони', st:'На счёте', info:'10 TON', rew:'3 000 DEMOS'},{title:'Прорвало трубу на Профсоюзной', st:'На счёте', info:'5 TON', rew:'1 500 DEMOS'}],
+  lots: [{at:Date.now()-15.2*86400000, demos:3000, title:'Пропал пёс Рони', ton:10, author:'boris', tip:5},{at:Date.now()-4.3*86400000, demos:1500, title:'Прорвало трубу на Профсоюзной', ton:5, author:'dom43_profsoyuznaya', tip:0},{at:Date.now()-0.6*86400000, demos:300, title:'Перекрыли полосы на Пироговской', ton:1, author:'semyon_p', tip:10}],
+  myX3d: [{title:'Пропал пёс Рони', st:'На счёте', info:'10 TON', rew:'3 000 DEMOS'},{title:'Прорвало трубу на Профсоюзной', st:'На счёте', info:'5 TON', rew:'1 500 DEMOS'},{title:'Перекрыли полосы на Пироговской', st:'На счёте', info:'1 TON', rew:'300 DEMOS'}],
   draft: null, geo: store.get('geo', null) || {lat:55.7387, lon:37.5806, label:'Москва, улица Плющиха, 12', acc:0, src:'demo'}, me: null, mapPoint: null,
   topics: new Set(['Город','Животные','Помощь']), details: new Set(),
   comments: JSON.parse(JSON.stringify(COMMENTS)), replyTo: null
@@ -731,7 +731,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · версия 0.27 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · версия 0.28 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Вся сумма превращается в DEMOS на вашем счёте. Это не обещание дохода.</div>
@@ -878,7 +878,7 @@ SHEETS.author = p => { const t = byId(p.id), a = AUTHORS[t.author] || {city:'М�
 SHEETS.thank = p => { const t = byId(p.id), v = p.v;
   return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px"><div class="heading">Поблагодарить @${t.author}</div>
    <div class="caption c-sec">С вашего счёта: ${fmt(balance())} DEMOS. Сколько отправите — столько автор и получит.</div>
-   <div class="amounts">${[50,100,250].map(x=>`<button class="amt ${v===x?'on':''}" style="${x===100&&v!==100?'border-color:var(--b-accent)':''}" data-a="thank-v" data-id="${t.id}" data-v="${x}">${x}</button>`).join('')}<button class="amt" data-a="toast" data-m="В рабочей версии — ввод своей суммы">Своя</button></div>
+   <div class="amounts">${[50,100,250].map(x=>`<button class="amt ${v===x?'on':''}" data-a="thank-v" data-id="${t.id}" data-v="${x}">${x}</button>`).join('')}<button class="amt" data-a="toast" data-m="В рабочей версии — ввод своей суммы">Своя</button></div>
    <div class="caption c-acc">100 DEMOS — рекомендуемая сумма</div></div>
    <div class="foot"><button class="btn primary" data-a="thank-send" data-id="${t.id}" ${v?'':'disabled'}>${v?`Отправить ${v} DEMOS`:'Отправить'}</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
 SHEETS.thanked = p => { const t = byId(p.id); return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">♥</div><div class="heading">Спасибо, что поблагодарили</div><div class="caption c-sec">@${t.author} получил ${p.v} DEMOS за эту Тропу.</div>
@@ -1064,7 +1064,7 @@ A['map-locate'] = () => { toast('Определяем местоположени
 A['map-ok'] = () => { const P = {...S.mapPoint}; const mode = S.params.mode;
   if (mode==='create'){ if (overLimit()) return; S.draft.geo = P; S.draft.geoTouched = true; back(); return; }
   S.geo = P; store.set('geo', P);
-  if (mode==='onboard' && !S.onboarded) go('tags1', {}, false); else { toast('Точка сохранена'); back(); } };
+  if (mode==='onboard' && !S.onboarded) go('tags1', {}, false); else { back(); toast('Точка сохранена'); } };
 A.topic = el => { const v = el.dataset.v; S.topics.has(v)?S.topics.delete(v):S.topics.add(v); render(false); };
 A.detail = el => { const v = el.dataset.v; S.details.has(v)?S.details.delete(v):S.details.add(v); render(false); };
 A['ob-finish'] = () => { S.onboarded = true; store.set('onboarded', true); [...S.topics, ...S.details].forEach(x=>S.subs.add(x)); store.set('subs',[...S.subs]); S.stack=[]; S.screen='main'; S.tab='feed'; render(true); };
@@ -1174,11 +1174,12 @@ A['addition-do'] = el => { const t = byId(el.dataset.id); const txt = (document.
   showInFeed(t.id, t.frags.length-1); toast('Тропа дополнена. Подписчики получат уведомление'); };
 A.toast = el => toast(el.dataset.m);
 A.reset = () => { try{localStorage.removeItem('demos_onboarded');}catch(e){} S.onboarded=false; S.stack=[]; go('splash',{},false); setTimeout(()=>{ if (S.screen==='splash') go('ob1',{},false); },1800); };
-A.saved = () => { toast('Профиль сохранён'); back(); };
-A.copy = () => { try{ navigator.clipboard.writeText('https://t.me/demos_bot?start=marsaon'); }catch(e){} toast('Ссылка скопирована'); };
+A.saved = () => { back(); toast('Профиль сохранён'); };
+A.copy = () => { try{ const pr = navigator.clipboard && navigator.clipboard.writeText('https://t.me/demos_bot?start=marsaon'); pr && pr.catch && pr.catch(()=>{}); }catch(e){} toast('Ссылка скопирована'); };
 A.ton = () => { S.wallet.ton = S.wallet.ton ? null : 'UQB…3fA2'; render(false); toast(S.wallet.ton?'Кошелёк подключён (тест)':'Кошелёк отключён'); };
 A['withdraw-do'] = () => { if (!S.wallet.ton){ S.wallet.ton='UQB…3fA2'; render(false); return toast('Кошелёк подключён (тест)'); }
-  const out = netOut(); S.lots = S.lots.filter(l=>!canOut(l)); S.myX3d.forEach(x=>{ if (x.st==='На счёте') x.st='Выведено'; }); toast(`Отправлено ${fmt(out)} DEMOS на кошелёк (тест)`); back(); };
+  const out = netOut(), gone = readyLots().map(l=>l.title); S.lots = S.lots.filter(l=>!canOut(l));
+  S.myX3d.forEach(x=>{ if (x.st==='На счёте' && gone.includes(x.title)) x.st='Выведено'; }); back(); toast(`Отправлено ${fmt(out)} DEMOS на кошелёк (тест)`); };
 
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-a]'); if (!el || !$app.contains(el)) return;
