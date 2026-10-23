@@ -427,6 +427,7 @@ function artSVG(key){
 // DEMOS Mini App v0 — кликабельная версия на тестовых данных
 (function(){
 const tg = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData !== undefined ? window.Telegram.WebApp : null;
+const WEB = !!window.DEMOS_WEB; // веб-версия (отдельная от Telegram)
 const store = {
   get(k,d){ try{ const v = localStorage.getItem('demos_'+k); return v===null? d : JSON.parse(v);}catch(e){ return d; } },
   set(k,v){ try{ localStorage.setItem('demos_'+k, JSON.stringify(v)); }catch(e){} }
@@ -585,7 +586,7 @@ function refreshCard(id){
 // ---------- экраны ----------
 const SCREENS = {};
 
-SCREENS.splash = () => `<div class="screen" style="justify-content:center;align-items:center" data-a="ob-next" data-to="ob1">
+SCREENS.splash = () => `<div class="screen" style="justify-content:center;align-items:center" data-a="ob-next" data-to="${WEB?'invited':'ob1'}">
   <div style="display:flex;flex-direction:column;align-items:center;margin-top:-40px">${I.logo}<div class="wordmark" style="font-size:34px;margin-top:30px">DEMOS</div><div class="body" style="letter-spacing:.04em;margin-top:10px">Биржа правды</div></div>
   <div class="caption c-sec" style="position:absolute;bottom:calc(40px + var(--safe-bottom));font-size:12px">«Мнение без равной конкуренции ничего не стоит»</div></div>`;
 
@@ -602,7 +603,7 @@ SCREENS.terms = () => `<div class="screen"><div class="scroll pad" style="displa
   <div class="body c-sec">DEMOS работает по правилам: без подписок на людей, одна новая Тропа в день, опубликованные Тропы не удаляются, незаконный контент модерируется.</div>
   ${['Условия использования','Политика конфиденциальности','Правила сообщества'].map(x=>`<div class="kv"><span>${x}</span><span class="c-acc caption">Открыть</span></div>`).join('')}
   <div class="check ${S.params.ok?'on':''}" data-a="terms-check"><span class="bx"></span><span>Я принимаю Условия использования, Политику конфиденциальности и Правила сообщества</span></div></div>
-  <div class="pad" style="padding-bottom:calc(24px + var(--safe-bottom))"><div class="dots" style="margin-bottom:16px"><i></i><i></i><i class="on"></i></div><button class="btn primary" data-a="ob-next" data-to="geo" ${S.params.ok?'':'disabled'}>Принять и продолжить</button></div></div>`;
+  <div class="pad" style="padding-bottom:calc(24px + var(--safe-bottom))"><div class="dots" style="margin-bottom:16px"><i></i><i></i><i class="on"></i></div><button class="btn primary" data-a="ob-next" data-to="${WEB?'install':'geo'}" ${S.params.ok?'':'disabled'}>Принять и продолжить</button></div></div>`;
 SCREENS.geo = () => `<div class="screen"><div class="scroll pad" style="display:flex;flex-direction:column;justify-content:center;gap:14px">
   <div class="icon-circle" style="background:var(--bg-accent-soft);color:var(--t-accent);margin:0 0 8px">◎</div>
   <div class="title">Тропы рядом с вами</div>
@@ -623,6 +624,40 @@ SCREENS.notif = () => `<div class="screen"><div class="scroll pad" style="displa
   <div class="body c-sec">Узнаете сразу, когда вам раздали Тропу рядом, когда в Тропе из ваших подписок появилось дополнение и когда вас поблагодарили.</div>
   <div class="caption c-mut">Выключить можно в любой момент в «О DEMOS» или в настройках браузера.</div></div>
   <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom));display:flex;flex-direction:column;gap:8px"><button class="btn primary" data-a="ob-notif">Включить уведомления</button><button class="btn ghost" data-a="ob-later">Позже</button></div></div>`;
+// ---------- веб-онбординг (решено 23.10, только веб-версия): вход только по приглашению, обязательные установка, уведомления, геопозиция ----------
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+// ссылка-приглашение: в вебе — на веб-версию с ?ref=, в Telegram — на бота
+const refLink = () => WEB ? (location.origin + location.pathname + '?ref=' + REFERRAL.code) : 'https://' + REFERRAL.link;
+const refLinkShort = () => refLink().replace(/^https?:\/\//,'');
+const isStandalone = () => { try{ return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; }catch(e){ return false; } };
+let installEvt = null;
+if (WEB){ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (S.screen==='install') render(false); });
+  window.addEventListener('appinstalled', () => { store.set('obStep','install'); if (S.screen==='install') go('opened', {}, false); }); }
+const inviteCode = () => (store.get('invitedBy', null) || {}).code || '';
+const obPage = (icon, title, body, actions, extra='') => `<div class="screen"><div class="scroll pad" style="display:flex;flex-direction:column;justify-content:center;gap:14px;text-align:center">
+  <div class="icon-circle" style="background:var(--bg-accent-soft);color:var(--t-accent)">${icon}</div><div class="title">${title}</div><div class="body c-sec">${body}</div>${extra}</div>
+  <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom));display:flex;flex-direction:column;gap:8px">${actions}</div></div>`;
+SCREENS.invite = () => obPage('🔒','DEMOS — только по приглашению', isStandalone()&&isIOS ? 'Вставьте код приглашения ещё раз — приложение на экране «Домой» не видит то, что было в Safari.' : 'Попросите ссылку у друга, который уже в DEMOS, или вставьте код приглашения.',
+  `<button class="btn primary" data-a="invite-go">Войти</button>`,
+  `<div class="field" style="text-align:left"><input id="invite-in" placeholder="Ссылка или код приглашения" autocapitalize="off" autocomplete="off"></div><div class="caption c-warn hidden" id="invite-err">Не похоже на ссылку или код приглашения</div>`);
+SCREENS.invited = () => obPage('🤝', `Вас пригласил @${esc(inviteCode())}`, 'DEMOS — биржа правды. Тропы приходят людям рядом и расходятся, только если их раздают. Дальше — три обязательных шага: установка, уведомления и геопозиция.',
+  `<button class="btn primary" data-a="ob-next" data-to="ob1">Продолжить</button>`);
+SCREENS.install = () => isIOS
+  ? obPage('📲','Добавьте DEMOS на экран «Домой»','Без установки DEMOS не работает: так приходят уведомления и приложение открывается с главного экрана, как обычное.',
+    `<button class="btn primary" data-a="install-ios">Я добавил — открыть с экрана «Домой»</button>`,
+    `<div class="box" style="text-align:left;display:flex;flex-direction:column;gap:8px"><div class="body">1. Нажмите «Поделиться» внизу Safari</div><div class="body">2. Выберите «На экран Домой»</div><div class="body">3. Нажмите «Добавить» и откройте DEMOS с главного экрана</div></div><div class="caption c-mut">Ваш код приглашения: <b class="nick">${esc(inviteCode())}</b> — если попросят, введите его.</div>`)
+  : obPage('📲','Установите DEMOS на телефон','Без установки DEMOS не работает: так приходят уведомления и приложение открывается с главного экрана, как обычное.',
+    installEvt ? `<button class="btn primary" data-a="install-do">Установить приложение</button>` : `<button class="btn primary" data-a="install-manual">Я установил — открыть с главного экрана</button>`,
+    installEvt ? '' : `<div class="box" style="text-align:left;display:flex;flex-direction:column;gap:8px"><div class="body">1. Откройте меню браузера ⋮</div><div class="body">2. Нажмите «Установить приложение» или «Добавить на главный экран»</div><div class="body">3. Откройте DEMOS с главного экрана</div></div>`);
+SCREENS.opened = () => obPage('✅','Готово — откройте DEMOS с главного экрана','Иконка DEMOS (белый треугольник) появилась на главном экране. Откройте приложение с неё — продолжим там.','');
+SCREENS.notifReq = () => obPage('🔔','Включите уведомления','Так вы узнаете, когда вам раздали Тропу рядом, когда в Тропе из ваших подписок появилось дополнение и когда вас поблагодарили. Без уведомлений DEMOS не работает.',
+  `<button class="btn primary" data-a="notif-req">Включить уведомления</button>`);
+SCREENS.notifOff = () => obPage('⚠️','Уведомления выключены', isIOS ? 'Чтобы продолжить, разрешите уведомления: Настройки → Уведомления → DEMOS. Затем вернитесь сюда.' : 'Чтобы продолжить, разрешите уведомления для DEMOS: нажмите на значок слева от адреса или откройте Настройки → Приложения → DEMOS → Уведомления. Затем вернитесь сюда.',
+  `<button class="btn primary" data-a="notif-check">Я разрешил — проверить</button>`);
+SCREENS.geoReq = () => obPage('📍','Разрешите геопозицию','DEMOS работает от вашей точки: Тропы приходят от неё — сначала самым ближним. Другие видят только расстояние до Тропы, а не саму точку.',
+  `<button class="btn primary" data-a="geo-req">Разрешить геопозицию</button>`);
+SCREENS.geoOff = () => obPage('⚠️','Геопозиция выключена','Чтобы продолжить, разрешите доступ к местоположению для DEMOS в настройках телефона или браузера, затем вернитесь сюда.',
+  `<button class="btn primary" data-a="geo-req">Я разрешил — проверить</button>`);
 SCREENS.tags1 = () => `<div class="screen">${topbar('','Шаг 1 из 2')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px">
   <div class="title">Выберите темы</div><div class="body c-sec">Мы отметили три популярные темы вашего города — снимите лишние или добавьте свои.</div>
   <div class="tag-grid">${TOPICS.map(x=>`<button class="chip ${S.topics.has(x)?'sub':''}" data-a="topic" data-v="${x}">${x}</button>`).join('')}</div>
@@ -722,7 +757,7 @@ function walletHTML(){
     <button class="kv" style="width:100%;text-align:left" data-a="go" data-to="thanks"><div><div>Благодарности</div><div class="caption c-mut">37 человек · с сообщениями</div></div><span class="c-acc">Открыть ›</span></button>
     <div class="box" style="margin-top:6px"><div class="strong">Пригласите друзей</div><div class="caption c-sec" style="margin:4px 0 8px">1% от каждого их буста X3D и благодарности — вам в TON через 14 дней после покупки друга. Действует 6 месяцев с момента, как друг пришёл по ссылке.</div>
       <button class="caption c-acc" style="text-align:left" data-a="go" data-to="referrals">Приглашено ${REFERRAL.friends.length} · получено ${refTotal()} TON  →</button>
-      <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><div class="field" style="flex:1;padding:10px 12px"><span class="caption">t.me/demos_bot?start=marsaon</span></div><button class="btn secondary" style="width:auto;padding:0 14px;height:42px;font-size:14px" data-a="copy">Копировать</button></div></div></div>`;
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><div class="field" style="flex:1;padding:10px 12px"><span class="caption">${refLinkShort()}</span></div><button class="btn secondary" style="width:auto;padding:0 14px;height:42px;font-size:14px" data-a="copy">Копировать</button></div></div></div>`;
 }
 
 // Благодарности автору — в личном кабинете (решено 23.10): кто, сколько, за какую Тропу, сообщение. Ответа внутри DEMOS нет — можно написать человеку в Telegram или соцсетях.
@@ -751,7 +786,7 @@ SCREENS.referrals = () => { const fr = REFERRAL.friends;
   <div>${fr.map(f=>{ const d=new Date(f.joined+'T00:00:00'); const left=refLeft(f);
     return `<div class="kv"><div><div class="strong">@${esc(f.nick)}</div><div class="caption ${left?'c-mut':'c-warn'}">${f.she?'пришла':'пришёл'} ${d.getDate()} ${MONTHS_GEN[d.getMonth()]} · ${left?`осталось ${left} мес`:'срок истёк'}</div></div><span class="strong c-suc">+${tonFmt(refEarned(f.nick))} TON</span></div>`; }).join('')}</div>
   <div class="caption c-mut">После 6 месяцев друг остаётся в DEMOS, но 1% от его бустов больше не начисляется.</div>
-  <div style="display:flex;gap:8px;align-items:center"><div class="field" style="flex:1;padding:10px 12px"><span class="caption">${REFERRAL.link}</span></div><button class="btn secondary" style="width:auto;padding:0 14px;height:42px;font-size:14px" data-a="copy">Копировать</button></div></div></div>`; };
+  <div style="display:flex;gap:8px;align-items:center"><div class="field" style="flex:1;padding:10px 12px"><span class="caption">${refLinkShort()}</span></div><button class="btn secondary" style="width:auto;padding:0 14px;height:42px;font-size:14px" data-a="copy">Копировать</button></div></div></div>`; };
 
 SCREENS.withdraw = () => { const bal = readyBal(), out = netOut();
   return `<div class="screen">${topbar('Вывод DEMOS')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:12px">
@@ -765,7 +800,6 @@ SCREENS.withdraw = () => { const bal = readyBal(), out = netOut();
   <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))">${out<S.rate?`<div class="caption c-warn center" style="margin-bottom:8px">Минимум для вывода — 1 TON (≈ ${fmt(S.rate)} DEMOS)</div>`:''}<button class="btn primary" data-a="withdraw-do" ${bal&&out>=S.rate?'':'disabled'}>${S.wallet.ton?`Вывести ${fmt(out)} DEMOS`:'Подключить кошелёк'}</button></div></div>`; };
 
 // ---------- уведомления веб-версии (23.10): включение, тест на устройстве, код подписки для отправки с сервера ----------
-const WEB = !!window.DEMOS_WEB;
 const VAPID_PUBLIC = 'BAJUM_wtzAzvKN-nLENr3vddT4tbzpCWzig0dRjGc1Ou4zBgrA5OnKFYCO5tx4iNPI1idYIE9XH7O7GkBAyU8_E';
 const PUSH = { perm: (typeof Notification!=='undefined') ? Notification.permission : 'unsupported', sub: '', reg: null };
 const b64u = s => { const p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g,'+').replace(/_/g,'/')); return Uint8Array.from([...b].map(c=>c.charCodeAt(0))); };
@@ -782,7 +816,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':'веб'} · версия 0.34 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':'веб'} · версия 0.35 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Вся сумма превращается в DEMOS на вашем счёте. Это не обещание дохода.</div>
@@ -1124,6 +1158,20 @@ A['push-on'] = async () => { const m = await pushEnable(); render(false); toast(
 const askNotif = () => WEB && typeof Notification!=='undefined' && Notification.permission==='default';
 A['ob-notif'] = async () => { const m = await pushEnable(); obDone(); toast(m); };
 A['ob-later'] = () => obDone();
+A['invite-go'] = () => { const v = (document.getElementById('invite-in')||{}).value||''; let code = '';
+  try{ const u = new URL(v.trim()); code = u.searchParams.get('ref') || u.searchParams.get('startapp') || u.searchParams.get('start') || ''; }catch(e){ code = v.trim(); }
+  code = code.replace(/^@/,'').replace(/^ref_/,'');
+  if (!/^[A-Za-z0-9_.]{3,32}$/.test(code)){ const er = document.getElementById('invite-err'); if (er) er.classList.remove('hidden'); return; }
+  store.set('invitedBy', {code, at:new Date().toISOString()}); keepRefInUrl(); go(isStandalone() && store.get('obStep','')==='install' ? 'notifReq' : 'invited', {}, false); };
+A['install-do'] = async () => { if (!installEvt) return render(false); installEvt.prompt(); try{ const c = await installEvt.userChoice; installEvt = null; if (c && c.outcome==='accepted'){ store.set('obStep','install'); go('opened', {}, false); } else render(false); }catch(e){ render(false); } };
+A['install-ios'] = () => { store.set('obStep','install'); go('opened', {}, false); };
+A['install-manual'] = () => { store.set('obStep','install'); go('opened', {}, false); };
+A['notif-req'] = async () => { if (typeof Notification==='undefined'){ toast('Это устройство не поддерживает уведомления'); return go('geoReq', {}, false); }
+  const m = await pushEnable(); if (PUSH.perm==='granted'){ go('geoReq', {}, false); toast(m); } else go('notifOff', {}, false); };
+A['notif-check'] = async () => { if (typeof Notification!=='undefined' && Notification.permission==='granted'){ const m = await pushEnable(); go('geoReq', {}, false); toast(m); } else toast('Уведомления всё ещё выключены'); };
+A['geo-req'] = () => { toast('Определяем местоположение…');
+  locate((r, why) => { if (!r){ if (why==='denied') return go('geoOff', {}, false); toast('Не удалось определить местоположение — попробуйте ещё раз на улице или у окна'); return; }
+    S.mapPoint = {lat:r.lat, lon:r.lon, acc:r.acc, src:'gps', label:''}; go('map', {mode:'onboard'}, false); reverseGeocode(r.lat, r.lon, lbl => { S.mapPoint.label = lbl; setText('map-label', lbl); }); }); };
 A['push-test'] = () => { toast('Через 5 секунд придёт уведомление — можно свернуть DEMOS');
   setTimeout(async () => { try{ const r = await navigator.serviceWorker.ready; await r.showNotification('Вам раздали Тропу · 1,2 км от вас', {body:'«Рыжий метис в синем ошейнике, убежал у Крымского вала…»', icon:'icon-192.png', badge:'icon-192.png', tag:'test', renotify:true, data:{url:'./'}}); }catch(e){ toast('Не получилось показать уведомление'); } }, 5000); };
 A.back = () => back();
@@ -1150,7 +1198,7 @@ A['map-ok'] = () => { const P = {...S.mapPoint}; const mode = S.params.mode;
   if (mode==='onboard' && !S.onboarded) go('tags1', {}, false); else { back(); toast('Точка сохранена'); } };
 A.topic = el => { const v = el.dataset.v; S.topics.has(v)?S.topics.delete(v):S.topics.add(v); render(false); };
 A.detail = el => { const v = el.dataset.v; S.details.has(v)?S.details.delete(v):S.details.add(v); render(false); };
-A['ob-finish'] = () => { if (askNotif() && S.screen!=='notif') return go('notif'); obDone(); };
+A['ob-finish'] = () => { if (!WEB && askNotif() && S.screen!=='notif') return go('notif'); obDone(); };
 function obDone(){ S.onboarded = true; store.set('onboarded', true); [...S.topics, ...S.details].forEach(x=>S.subs.add(x)); store.set('subs',[...S.subs]); S.stack=[]; S.screen='main'; S.tab='feed'; render(true); };
 A.nav = el => { if (el.dataset.t==='feed') S.feedTab = 'trails'; home(el.dataset.t); };
 A.feedtab = el => { S.feedTab = el.dataset.t; render(false); };
@@ -1262,9 +1310,9 @@ A['addition-do'] = el => { const t = byId(el.dataset.id); const txt = (document.
   t.frags.push({art:t.frags[t.frags.length-1].art, text:txt.trim(), url:m?m.url:undefined, kind:m?m.kind:undefined}); S.lastAddAt = Date.now();
   showInFeed(t.id, t.frags.length-1); toast('Тропа дополнена. Подписчики получат уведомление'); };
 A.toast = el => toast(el.dataset.m);
-A.reset = () => { try{localStorage.removeItem('demos_onboarded');}catch(e){} S.onboarded=false; S.stack=[]; go('splash',{},false); setTimeout(()=>{ if (S.screen==='splash') go('ob1',{},false); },1800); };
+A.reset = () => { try{localStorage.removeItem('demos_onboarded'); localStorage.removeItem('demos_obStep');}catch(e){} S.onboarded=false; S.stack=[]; go(WEB&&!inviteCode()?'invite':'splash',{},false); setTimeout(()=>{ if (S.screen==='splash') go(WEB?'invited':'ob1',{},false); },1800); };
 A.saved = () => { back(); toast('Профиль сохранён'); };
-A.copy = () => { try{ const pr = navigator.clipboard && navigator.clipboard.writeText('https://t.me/demos_bot?start=marsaon'); pr && pr.catch && pr.catch(()=>{}); }catch(e){} toast('Ссылка скопирована'); };
+A.copy = () => { try{ const pr = navigator.clipboard && navigator.clipboard.writeText(refLink()); pr && pr.catch && pr.catch(()=>{}); }catch(e){} toast('Ссылка скопирована'); };
 A.ton = () => { S.wallet.ton = S.wallet.ton ? null : 'UQB…3fA2'; render(false); toast(S.wallet.ton?'Кошелёк подключён (тест)':'Кошелёк отключён'); };
 A['withdraw-do'] = () => { if (!S.wallet.ton){ S.wallet.ton='UQB…3fA2'; render(false); return toast('Кошелёк подключён (тест)'); }
   const out = netOut(), gone = readyLots().map(l=>l.title); S.lots = S.lots.filter(l=>!canOut(l));
@@ -1352,9 +1400,13 @@ A.sound = () => { if (S.soundBlocked){ S.sound = true; S.soundBlocked = false; }
 // ---------- старт ----------
 if (tg){ try{ tg.ready(); tg.expand(); tg.setHeaderColor && tg.setHeaderColor('#11151F'); tg.setBackgroundColor && tg.setBackgroundColor('#11151F'); tg.BackButton.onClick(back); if (tg.disableVerticalSwipes) tg.disableVerticalSwipes(); }catch(e){} }
 try{ const sp = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param; if (sp && !store.get('invitedBy', null)) store.set('invitedBy', {code: String(sp).replace(/^ref_/,''), at: new Date().toISOString()}); }catch(e){}
-S.screen = S.onboarded ? 'main' : 'splash';
+// веб: код приглашения из ссылки ?ref=; держим его в адресе, чтобы установленное приложение открылось с ним
+function keepRefInUrl(){ try{ const c = inviteCode(); if (WEB && c && new URLSearchParams(location.search).get('ref')!==c) history.replaceState(null, '', location.pathname + '?ref=' + encodeURIComponent(c)); }catch(e){} }
+if (WEB){ try{ const q = new URLSearchParams(location.search).get('ref'); if (q && /^[A-Za-z0-9_.]{3,32}$/.test(q.replace(/^ref_/,'')) && !store.get('invitedBy', null)) store.set('invitedBy', {code:q.replace(/^ref_/,''), at:new Date().toISOString()}); }catch(e){} keepRefInUrl(); }
+const webStart = () => !inviteCode() ? 'invite' : (isStandalone() && store.get('obStep','')==='install') ? 'notifReq' : 'splash';
+S.screen = S.onboarded ? 'main' : (WEB ? webStart() : 'splash');
 render(true);
-if (!S.onboarded) setTimeout(()=>{ if (S.screen==='splash') go('ob1', {}, false); }, 1800);
+if (!S.onboarded && S.screen==='splash') setTimeout(()=>{ if (S.screen==='splash') go(WEB ? 'invited' : 'ob1', {}, false); }, 1800);
 window.DEMOS = {S, reset(){ try{localStorage.removeItem('demos_onboarded');}catch(e){} location.reload(); }};
 })();
 </script></body></html>

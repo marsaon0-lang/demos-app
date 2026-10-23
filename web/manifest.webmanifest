@@ -1,7 +1,6 @@
 {
  "name": "DEMOS",
  "short_name": "DEMOS",
- "start_url": "./",
  "scope": "./",
  "display": "standalone",
  "background_color": "#11151F",

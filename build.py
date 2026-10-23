@@ -34,4 +34,6 @@ web = page(False).replace('<title>DEMOS</title>', '<title>DEMOS</title>\n<link r
 web = web.replace('<body><div id="app"></div>', '<body><div id="app"></div>\n<script>window.DEMOS_WEB=true</script>')
 (root/'dist'/'web'/'index.html').write_text(web, encoding='utf-8')
 (root/'dist'/'web'/'sw.js').write_text((root/'src'/'sw.js').read_text(encoding='utf-8'), encoding='utf-8')
+import shutil
+for f in (root/'web_static').iterdir(): shutil.copy(f, root/'dist'/'web'/f.name)
 print('ok', len(page(False)))
