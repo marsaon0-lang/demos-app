@@ -142,8 +142,8 @@ function actionsHTML(t){
     const x = m.x3d;
     return `<div class="actions"><div class="part">
       <div class="top"><span class="strong">Вы поддержали Тропу</span>${strengthHTML(t.strength,t.trend)}</div>
-      <div class="top"><span class="heading">+${fmt(x.demos)} DEMOS</span><span class="caption c-sec">${x.amount} TON · NFT получен</span></div>
-    </div>${mtRow(t)}</div>`;
+      <div class="top"><span class="heading">+${fmt(x.demos)} DEMOS</span><button class="mt-mini" data-a="mt" data-id="${t.id}"><span class="c-sec">${x.amount} TON ·</span>${mtTri(t.mtOf)}<b>${t.mtOf} из 100</b></button></div>
+    </div></div>`;
   }
   const shareBtn = m.shared ? '' : `<button class="btn secondary" data-a="share" data-id="${t.id}">${I.share}<span>Раздать</span><span class="cnt">${fmt(t.shares)}</span></button>`;
   return `<div class="actions"><div class="row">${shareBtn}<button class="btn x3d" data-a="x3d" data-id="${t.id}"><span>X3D · Буст</span><span class="cnt">${t.x3d}</span></button></div>${mtRow(t)}</div>`;
@@ -250,8 +250,11 @@ const daysLeft = l => Math.max(0, LOCK_DAYS - daysHeld(l));
 const canOut = l => daysHeld(l) >= LOCK_DAYS;
 const balance = () => S.lots.reduce((a,l)=>a+l.demos,0);
 // награда автору: % от покупки, который зритель оставляет автору; передаётся при выводе или когда Тропа завершится
-const lotTip = l => Math.round(l.demos*(l.tip||0)/100);
-const lotOut = l => Math.round((l.demos - lotTip(l))*(1-FEE/100));
+// порядок (решено 23.10): сначала комиссия сервиса 6% (в ней и реферальный 1%), награда автору — % от остатка
+const afterFee = demos => Math.round(demos*(1-FEE/100));
+const tipOf = (demos, tip) => Math.round(afterFee(demos)*(tip||0)/100);
+const lotTip = l => tipOf(l.demos, l.tip);
+const lotOut = l => afterFee(l.demos) - lotTip(l);
 const readyLots = () => S.lots.filter(canOut);
 const netOut = () => readyLots().reduce((a,l)=>a+lotOut(l),0);
 const tipsTotal = () => readyLots().reduce((a,l)=>a+lotTip(l),0);
@@ -325,7 +328,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · версия 0.21 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · версия 0.22 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Вся сумма превращается в DEMOS на вашем счёте. Это не обещание дохода.</div>
@@ -409,22 +412,22 @@ SHEETS.x3d = p => { const t = byId(p.id); const a = p.amount || 10;
    <div><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">На ваш счёт</span><span class="v">≈ ${fmt(a*RATE)} DEMOS</span></div><div class="kv"><span class="k">Комиссия</span><span class="v">6%</span></div></div>
    <div class="tipbox"><div class="top"><span class="strong">Награда автору</span><span class="caption c-mut">необязательно</span></div>
    <div class="caption c-sec">Сколько DEMOS из этой покупки оставить @${esc(t.author)}. Передаются при выводе токенов на кошелёк либо по завершении Тропы.</div>
-   ${tipChooser(a*RATE, p.tip, p.tipCustom)}</div>
-   <div class="fine c-mut">Вся сумма сразу превращается в DEMOS по рынку и лежит на вашем счёте в приложении. Комиссия — только при выводе на кошелёк: вывод доступен только от 14 дней — 6%. NFT подтверждает, что вы поддержали эту Тропу: его можно хранить или продать. Цена DEMOS не гарантируется.</div>
+   ${tipChooser(afterFee(a*RATE), p.tip, p.tipCustom)}</div>
+   <div class="fine c-mut">Вся сумма сразу превращается в DEMOS по рынку и лежит на вашем счёте в приложении. Комиссия 6% — только при выводе на кошелёк; вывести можно через 14 дней после покупки. NFT подтверждает, что вы поддержали эту Тропу: его можно хранить или продать. Цена DEMOS не гарантируется.</div>
    <button class="caption c-acc" style="text-align:left" data-a="go" data-to="reward">Как работает X3D →</button>
 </div>
-   <div class="foot">${S.residentDone?'':`<button type="button" class="check ${S.residentOk?'on':''}" data-a="resident"><span class="bx"></span><span>Я согласен с тем, что цена не гарантируется, и я не резидент страны из списка ограничений</span></button>`}<button class="btn primary" id="x3d-pay" data-a="x3d-pay" data-id="${t.id}" ${(S.residentOk||S.residentDone)?'':'disabled'}>Оплатить ${a} TON</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
+   <div class="foot">${S.residentDone?'':`<button type="button" class="check ${S.residentOk?'on':''}" data-a="resident"><span class="bx"></span><span>Я согласен с тем, что цена не гарантируется, и подтверждаю, что не являюсь резидентом страны из списка ограничений</span></button>`}<button class="btn primary" id="x3d-pay" data-a="x3d-pay" data-id="${t.id}" ${(S.residentOk||S.residentDone)?'':'disabled'}>Оплатить ${a} TON</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
 SHEETS.tipEdit = p => { const l = S.lots[p.i]; if (!l) return '';
   return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px"><div class="heading">Награда автору</div>
    <div class="caption c-sec">${esc(l.title)} · +${fmt(l.demos)} DEMOS. Сколько оставить @${esc(l.author||'')}? Передаётся при выводе или когда Тропа завершится.</div>
-   ${tipChooser(l.demos, p.tip, p.tipCustom)}
+   ${tipChooser(afterFee(l.demos), p.tip, p.tipCustom)}
    <button class="amt ${p.tip===0?'on':''}" style="height:40px" data-a="tip-pick" data-v="0">Без награды</button></div>
    <div class="foot"><button class="btn primary" data-a="tip-save">Сохранить</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
 SHEETS.paying = p => `<div class="grab"></div><div class="sc center" style="padding-top:10px"><div class="icon-circle" style="background:var(--bg-accent-soft);color:var(--t-accent)">⌛</div><div class="heading">Подтвердите в кошельке</div><div class="caption c-sec" style="margin:6px 0 16px">Откройте кошелёк и подтвердите оплату ${p.amount} TON. В тестовой версии оплата пройдёт сама.</div></div>`;
 SHEETS.boosted = p => { const t = byId(p.id), x = t.my.x3d;
   return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">✓</div><div class="heading">Вы поддержали Тропу</div>
    <div class="caption c-sec">Тропу увидят ещё 36 человек рядом с вами и по тегам. Вы подписаны на Тропу — пришлём её дополнения.</div>
-   <div style="text-align:left"><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">На ваш счёт</span><span class="v">+${fmt(x.demos)} DEMOS</span></div><div class="kv"><span class="k">NFT «Поддержал Тропу»</span><span class="v">получен</span></div><div class="kv"><span class="k">Награда автору</span><span class="v">${x.tip?`${x.tip}% · ${fmt(Math.round(x.demos*x.tip/100))} DEMOS`:'не выбрана'}</span></div></div>
+   <div style="text-align:left"><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">На ваш счёт</span><span class="v">+${fmt(x.demos)} DEMOS</span></div><div class="kv"><span class="k">NFT «Поддержал Тропу»</span><span class="v">получен</span></div><div class="kv"><span class="k">Награда автору</span><span class="v">${x.tip?`${x.tip}% · ${fmt(tipOf(x.demos, x.tip))} DEMOS`:'не выбрана'}</span></div></div>
    <div class="caption c-mut">Награду автору можно изменить, когда Тропа завершится или когда будете выводить DEMOS. В тестовой версии оплата, DEMOS и NFT условные.</div></div>
    <div class="foot"><button class="btn primary" data-a="close">Готово</button></div>`; };
 SHEETS.mt = p => { const t = byId(p.id); return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">

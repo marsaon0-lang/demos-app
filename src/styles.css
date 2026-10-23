@@ -229,3 +229,5 @@ input,textarea{font:inherit;color:inherit}
 .amt.tipb small{font-size:11px;color:var(--t-secondary);font-weight:400}
 .amt.rec{border-color:var(--b-accent)}
 .tipbox .amt{background:var(--bg-surface)}
+.mt-mini{display:flex;align-items:center;gap:5px;font-size:13px;white-space:nowrap}
+.mt-mini b{font-weight:700}
