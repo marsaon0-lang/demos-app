@@ -750,12 +750,25 @@ SCREENS.withdraw = () => { const bal = readyBal(), out = netOut();
   <div class="caption c-mut">Выводятся покупки, которым уже 14 дней, комиссия — 6%, минимум — 1 TON. Награда автору передаётся при выводе — её можно изменить прямо здесь. Комиссию сети TON платит DEMOS. В тестовой версии вывод условный.</div></div>
   <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))">${out<S.rate?`<div class="caption c-warn center" style="margin-bottom:8px">Минимум для вывода — 1 TON (≈ ${fmt(S.rate)} DEMOS)</div>`:''}<button class="btn primary" data-a="withdraw-do" ${bal&&out>=S.rate?'':'disabled'}>${S.wallet.ton?`Вывести ${fmt(out)} DEMOS`:'Подключить кошелёк'}</button></div></div>`; };
 
+// ---------- уведомления веб-версии (23.10): включение, тест на устройстве, код подписки для отправки с сервера ----------
+const WEB = !!window.DEMOS_WEB;
+const VAPID_PUBLIC = 'BAJUM_wtzAzvKN-nLENr3vddT4tbzpCWzig0dRjGc1Ou4zBgrA5OnKFYCO5tx4iNPI1idYIE9XH7O7GkBAyU8_E';
+const PUSH = { perm: (typeof Notification!=='undefined') ? Notification.permission : 'unsupported', sub: '', reg: null };
+const b64u = s => { const p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g,'+').replace(/_/g,'/')); return Uint8Array.from([...b].map(c=>c.charCodeAt(0))); };
+async function swReg(){ if (!WEB || !('serviceWorker' in navigator)) return null; if (PUSH.reg) return PUSH.reg; try{ PUSH.reg = await navigator.serviceWorker.register('sw.js'); return PUSH.reg; }catch(e){ return null; } }
+if (WEB) swReg().then(async r => { try{ if (r && r.pushManager){ const sb = await r.pushManager.getSubscription(); if (sb){ PUSH.sub = JSON.stringify(sb); if (S.screen==='about') render(false); } } }catch(e){} });
+function pushCard(){ if (!WEB) return '';
+  const st = PUSH.perm==='unsupported' ? ['mut','не поддерживаются'] : PUSH.perm==='denied' ? ['warn','запрещены'] : (PUSH.perm==='granted' && PUSH.sub) ? ['suc','включены'] : ['mut','выключены'];
+  return `<div class="box" style="display:flex;flex-direction:column;gap:10px"><div style="display:flex;justify-content:space-between;align-items:center"><span class="strong">Уведомления</span><span class="badge ${st[0]}">${st[1]}</span></div>
+   <div class="caption c-sec">«Вам раздали Тропу · 1,2 км от вас», дополнения Троп из подписок, благодарности. ${PUSH.perm==='unsupported'?'На iPhone уведомления работают, только если добавить DEMOS на экран «Домой» (Safari → «Поделиться» → «На экран Домой») и открыть оттуда.':PUSH.perm==='denied'?'Разрешите уведомления для этого сайта в настройках браузера.':''}</div>
+   ${PUSH.perm==='granted' && PUSH.sub ? `<button class="btn secondary" data-a="push-test">Прислать тестовое уведомление</button><button class="btn ghost" data-a="push-copy">Скопировать код подписки</button>` : PUSH.perm!=='unsupported' && PUSH.perm!=='denied' ? `<button class="btn primary" data-a="push-on">Включить уведомления</button>` : ''}</div>`; }
 SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:18px;padding-bottom:24px">
+  ${pushCard()}
   <div class="title" style="font-size:26px;line-height:1.3;margin:10px 0">Правда —<br>это мнение, выдержавшее<br>равную конкуренцию</div>
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':'веб'} · версия 0.32 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':'веб'} · версия 0.33 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Вся сумма превращается в DEMOS на вашем счёте. Это не обещание дохода.</div>
@@ -1083,6 +1096,20 @@ function enableSwipeDown(sheet, dim){
 
 // ---------- действия ----------
 const A = {};
+A['push-on'] = async () => {
+  if (typeof Notification==='undefined') return toast('Этот браузер не поддерживает уведомления');
+  const p = await Notification.requestPermission(); PUSH.perm = p;
+  if (p!=='granted'){ render(false); return toast('Уведомления не разрешены'); }
+  toast('Подключаем уведомления…');
+  const r = await swReg(); if (!r) { render(false); return toast('Не удалось подключить уведомления'); }
+  const limit = ms => new Promise((_,rej)=>setTimeout(()=>rej(new Error('нет ответа от сервиса уведомлений')), ms));
+  let msg = 'Уведомления включены';
+  try{ await Promise.race([navigator.serviceWorker.ready, limit(10000)]); const sb = await Promise.race([r.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64u(VAPID_PUBLIC)}), limit(15000)]); PUSH.sub = JSON.stringify(sb); }
+  catch(e){ msg = 'Подписка не удалась: '+(e && e.message || e); }
+  render(false); toast(msg); };
+A['push-test'] = () => { toast('Через 5 секунд придёт уведомление — можно свернуть DEMOS');
+  setTimeout(async () => { try{ const r = await navigator.serviceWorker.ready; await r.showNotification('Вам раздали Тропу · 1,2 км от вас', {body:'«Рыжий метис в синем ошейнике, убежал у Крымского вала…»', icon:'icon-192.png', badge:'icon-192.png', tag:'test', renotify:true, data:{url:'./'}}); }catch(e){ toast('Не получилось показать уведомление'); } }, 5000); };
+A['push-copy'] = () => { try{ const pr = navigator.clipboard && navigator.clipboard.writeText(PUSH.sub); pr && pr.then(()=>toast('Код подписки скопирован — пришлите его мне'), ()=>prompt('Скопируйте код подписки', PUSH.sub)); }catch(e){ prompt('Скопируйте код подписки', PUSH.sub); } };
 A.back = () => back();
 A.close = () => closeSheet();
 A.go = el => go(el.dataset.to, {});

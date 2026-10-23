@@ -31,5 +31,7 @@ art = f'''<title>DEMOS · Mini App</title>
 # веб-версия (решено 23.10): тот же код без telegram-web-app.js, с манифестом — можно добавить на главный экран телефона
 web = page(False).replace('<title>DEMOS</title>', '<title>DEMOS</title>\n<link rel="manifest" href="manifest.webmanifest">\n<link rel="apple-touch-icon" href="icon-192.png">\n<link rel="icon" href="icon-192.png">\n<meta name="apple-mobile-web-app-capable" content="yes">\n<meta name="mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">\n<meta name="apple-mobile-web-app-title" content="DEMOS">')
 (root/'dist'/'web').mkdir(exist_ok=True)
+web = web.replace('<body><div id="app"></div>', '<body><div id="app"></div>\n<script>window.DEMOS_WEB=true</script>')
 (root/'dist'/'web'/'index.html').write_text(web, encoding='utf-8')
+(root/'dist'/'web'/'sw.js').write_text((root/'src'/'sw.js').read_text(encoding='utf-8'), encoding='utf-8')
 print('ok', len(page(False)))
