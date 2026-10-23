@@ -421,11 +421,11 @@ const S = {
   trails: TRAILS.map(t => ({...t, my:{shared:false, x3d:null, tagAdded:false, subscribed:false, frag:0, seen:new Set([0]), thanked:false, expanded:false}})),
   myTrails: MY_TRAILS.map(t => ({...t, my:{frag:0, seen:new Set([0])}})),
   subs: new Set(store.get('subs', ['Москва','Хамовники','Помощь','Животные','ЖКХ','Дети','Дороги'])),
-  residentOk: false, firstTrail: true, createdToday: false, lastAddAt: 0,
+  residentOk: false, rate: 300, rateAt: Date.now(), firstTrail: true, createdToday: false, lastAddAt: 0,
   wallet: {ton:null},
   // счёт DEMOS: каждая покупка X3D — отдельная партия со своей датой (стейкинг считается по каждой партии)
   lots: [{at:Date.now()-15.2*86400000, demos:3000, title:'Пропал пёс Рони', ton:10, author:'boris', tip:5},{at:Date.now()-4.3*86400000, demos:1500, title:'Прорвало трубу на Профсоюзной', ton:5, author:'dom43_profsoyuznaya', tip:0},{at:Date.now()-0.6*86400000, demos:300, title:'Сломали площадку на Плющихе', ton:1, author:'semyon_p', tip:10}],
-  myX3d: [{title:'Пропал пёс Рони', st:'На счёте', info:'10 TON · NFT получен', rew:'3 000 DEMOS'},{title:'Прорвало трубу на Профсоюзной', st:'На счёте', info:'5 TON · NFT получен', rew:'1 500 DEMOS'}],
+  myX3d: [{title:'Пропал пёс Рони', st:'На счёте', info:'10 TON', rew:'3 000 DEMOS'},{title:'Прорвало трубу на Профсоюзной', st:'На счёте', info:'5 TON', rew:'1 500 DEMOS'}],
   draft: null, geo: store.get('geo', null) || {lat:55.7387, lon:37.5806, label:'Москва, улица Плющиха, 12', acc:0, src:'demo'}, me: null, mapPoint: null,
   topics: new Set(['Город','Животные','Помощь']), details: new Set(),
   comments: JSON.parse(JSON.stringify(COMMENTS)), replyTo: null
@@ -663,7 +663,7 @@ const tipsTotal = () => readyLots().reduce((a,l)=>a+lotTip(l),0);
 const readyBal = () => readyLots().reduce((a,l)=>a+l.demos,0);
 const TIP_OPTS = [1,5,20];
 function tipChooser(base, sel, custom){
-  return `<div class="amounts">${TIP_OPTS.map(v=>`<button class="amt tipb ${sel===v?'on':''} ${v===5&&sel==null?'rec':''}" data-a="tip-pick" data-v="${v}"><span>${v}%</span><small>${fmt(base*v/100)}</small></button>`).join('')}<button class="amt tipb ${sel==='custom'?'on':''}" data-a="tip-pick" data-v="custom"><span>Своя</span><small>${sel==='custom'&&+custom?fmt(base*custom/100):'%'}</small></button></div>
+  return `<div class="amounts">${TIP_OPTS.map(v=>`<button class="amt tipb ${sel===v?'on':''}" data-a="tip-pick" data-v="${v}"><span>${v}%</span><small>${fmt(base*v/100)}</small></button>`).join('')}<button class="amt tipb ${sel==='custom'?'on':''}" data-a="tip-pick" data-v="custom"><span>Своя</span><small>${sel==='custom'&&+custom?fmt(base*custom/100):'%'}</small></button></div>
    ${sel==='custom'?`<div class="field" style="display:flex;gap:8px;align-items:center"><input id="tip-custom" type="text" inputmode="numeric" maxlength="3" placeholder="Свой процент, от 1 до 100" value="${esc(custom||'')}" data-input="tip-custom"><span class="c-sec">%</span></div>`:''}
    <div class="caption c-acc">5% — рекомендуемая награда</div>`;
 }
@@ -730,11 +730,11 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · версия 0.23 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · версия 0.24 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Вся сумма превращается в DEMOS на вашем счёте. Это не обещание дохода.</div>
-  ${[['1. Оплата','1, 10 или 100 TON.'],['2. Обмен','Вся сумма сразу превращается в DEMOS по рынку. Курс фиксируется в момент обмена, цифры в окне оплаты действуют 60 секунд.'],['3. Счёт','DEMOS лежат на вашем счёте в приложении. Каждая покупка хранится отдельно.'],['4. Вывод','Вывести DEMOS на свой кошелёк можно через 14 дней после покупки. Комиссия — 6%.'],['5. NFT','Бесплатно — подтверждение, что вы поддержали эту Тропу. Ничего не открывает в приложении. Его можно хранить или продать на маркетплейсе.'],['6. Охват','Одинаковый при любой сумме: +36 человек. Сумма влияет только на количество DEMOS и на Money Trust Тропы.'],['7. Приглашения','Пригласивший получает 1% от каждого X3D друга в TON — 6 месяцев. Это платит платформа, у вас ничего не удерживается.'],['8. Пилот','На пилоте DEMOS — внутренние очки, вывода на кошелёк ещё нет.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="caption c-sec">${b[1]}</div></div>`).join('')}
+  ${[['1. Оплата','1, 10 или 100 TON.'],['2. Обмен','Вся сумма сразу превращается в DEMOS по текущей цене. Цена в окне оплаты обновляется автоматически каждые 60 секунд; обмен — по цене, которая была на экране в момент оплаты.'],['3. Счёт','DEMOS лежат на вашем счёте в приложении. Каждая покупка хранится отдельно.'],['4. Вывод','Вывести DEMOS на свой кошелёк можно через 14 дней после покупки. Комиссия — 6%.'],['5. Охват','Одинаковый при любой сумме: +36 человек. Сумма влияет только на количество DEMOS и на Money Trust Тропы.'],['6. Приглашения','Пригласивший получает 1% от каждого X3D друга в TON — 6 месяцев. Это платит платформа, у вас ничего не удерживается.'],['7. Пилот','На пилоте DEMOS — внутренние очки, вывода на кошелёк ещё нет.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="caption c-sec">${b[1]}</div></div>`).join('')}
   <div class="box"><div class="strong">Пример</div><div class="caption c-sec">Вы оплатили 10 TON. По курсу 1 TON = 300 DEMOS на ваш счёт придёт 3 000 DEMOS. Через 14 дней их можно вывести: 2 820 DEMOS на кошелёк после комиссии 6%. Курс в примере условный.</div></div>
   <div class="caption c-mut">Цена DEMOS не гарантируется. X3D и вывод недоступны в некоторых странах.</div></div></div>`;
 
@@ -799,23 +799,32 @@ function openSheet(name, params={}){ document.querySelectorAll('.toast').forEach
 function closeSheet(){ S.sheet = null; renderSheet(); }
 const SHEETS = {};
 function x3dCalc(t, a){ const n = t.x3d + 1, coef = 0.3 + 2.7*Math.exp(-(n-1)/30); return {n, max:a*coef*300, min:a*0.3*300}; }
-const RATE = 300; // тестовая цена: 1 TON = 300 DEMOS
+const RATE = 300; // стартовая тестовая цена: 1 TON = 300 DEMOS
+// цена DEMOS (решено 23.10): обновляется каждые 60 секунд; в рабочей версии её отдаёт сервер (из пула DEMOS/TON), в тестовой — условно меняется на ±1%
+const PRICE_EVERY = 60;
+const priceLeft = () => Math.max(0, PRICE_EVERY - Math.floor((Date.now()-S.rateAt)/1000));
+const mmss = n => `${Math.floor(n/60)}:${String(n%60).padStart(2,'0')}`;
+setInterval(() => {
+  if (Date.now()-S.rateAt >= PRICE_EVERY*1000){ S.rate = Math.max(1, Math.round(S.rate*(1+(Math.random()*2-1)/100))); S.rateAt = Date.now();
+    if (S.sheet && S.sheet.name==='x3d' && !(document.activeElement && document.activeElement.tagName==='INPUT')) renderSheet(); }
+  const el = document.getElementById('rate-left'); if (el) el.textContent = mmss(priceLeft());
+}, 1000);
 const NFT_TIERS = [{ton:1, g:['#1d4ed8','#3DB4FF']}, {ton:10, g:['#6d28d9','#3D8BFF']}, {ton:100, g:['#b45309','#f5a524']}];
 const nftCard = (tier, on) => `<button class="nft ${on?'on':''}" data-a="x3d-amt" data-v="${tier.ton}">
-  ${NFT_IMG[tier.ton] ? `<span class="nft-img"><img src="${NFT_IMG[tier.ton]}" alt="NFT X3D ${tier.ton} TON"></span>` : `<span class="nft-art" style="background:linear-gradient(145deg,${tier.g[0]},${tier.g[1]})"><span class="nft-badge">NFT</span>
+  ${NFT_IMG[tier.ton] ? `<span class="nft-img"><img src="${NFT_IMG[tier.ton]}" alt="X3D ${tier.ton} TON"></span>` : `<span class="nft-art" style="background:linear-gradient(145deg,${tier.g[0]},${tier.g[1]})">
   <svg viewBox="0 0 40 36" class="nft-tri"><path d="M20 3L37 33H3z" fill="none" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>
   <span class="nft-x">X3D</span></span>`}
-  <span class="nft-ton">${tier.ton} TON</span><span class="nft-dm">≈ ${fmt(tier.ton*RATE)} DEMOS</span></button>`;
+  <span class="nft-ton">${tier.ton} TON</span><span class="nft-dm">≈ ${fmt(tier.ton*S.rate)} DEMOS</span></button>`;
 SHEETS.x3d = p => { const t = byId(p.id); const a = p.amount || 10;
   return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
    <div style="display:flex;justify-content:space-between;align-items:center"><div class="heading">Буст Тропы</div>${strengthHTML(t.strength,t.trend)}</div>
    <div class="caption c-sec">Тропу увидят ещё 36 человек рядом с вами и по тегам</div>
    <div class="nft-row">${NFT_TIERS.map(tr=>nftCard(tr, tr.ton===a)).join('')}</div>
-   <div><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">На ваш счёт</span><span class="v">≈ ${fmt(a*RATE)} DEMOS</span></div><div class="kv"><span class="k">Комиссия</span><span class="v">6%</span></div></div>
+   <div><div class="kv"><div><div class="k">Цена DEMOS</div><div class="fine c-mut">обновится через <span id="rate-left">${mmss(priceLeft())}</span></div></div><span class="v">1 TON = ${fmt(S.rate)} DEMOS</span></div><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">На ваш счёт</span><span class="v">≈ ${fmt(a*S.rate)} DEMOS</span></div><div class="kv"><span class="k">Комиссия</span><span class="v">6%</span></div></div>
    <div class="tipbox"><div class="top"><span class="strong">Награда автору</span><span class="caption c-mut">необязательно</span></div>
    <div class="caption c-sec">Сколько DEMOS из этой покупки (после комиссии 6%) оставить @${esc(t.author)}. Передаются при выводе токенов на кошелёк либо по завершении Тропы.</div>
-   ${tipChooser(afterFee(a*RATE), p.tip, p.tipCustom)}</div>
-   <div class="fine c-mut">Вся сумма сразу превращается в DEMOS по рынку и лежит на вашем счёте в приложении. Комиссия 6% — только при выводе на кошелёк; вывести можно через 14 дней после покупки. NFT подтверждает, что вы поддержали эту Тропу: его можно хранить или продать. Цена DEMOS не гарантируется.</div>
+   ${tipChooser(afterFee(a*S.rate), p.tip, p.tipCustom)}</div>
+   <div class="fine c-mut">Вся сумма сразу превращается в DEMOS по рынку и лежит на вашем счёте в приложении. Комиссия 6% — только при выводе на кошелёк; вывести можно через 14 дней после покупки. Цена DEMOS не гарантируется.</div>
    <button class="caption c-acc" style="text-align:left" data-a="go" data-to="reward">Как работает X3D →</button>
 </div>
    <div class="foot">${S.residentDone?'':`<button type="button" class="check ${S.residentOk?'on':''}" data-a="resident"><span class="bx"></span><span>Я согласен с тем, что цена не гарантируется, и подтверждаю, что не являюсь резидентом страны из списка ограничений</span></button>`}<button class="btn primary" id="x3d-pay" data-a="x3d-pay" data-id="${t.id}" ${(S.residentOk||S.residentDone)?'':'disabled'}>Оплатить ${a} TON</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
@@ -829,8 +838,8 @@ SHEETS.paying = p => `<div class="grab"></div><div class="sc center" style="padd
 SHEETS.boosted = p => { const t = byId(p.id), x = t.my.x3d;
   return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">✓</div><div class="heading">Вы поддержали Тропу</div>
    <div class="caption c-sec">Тропу увидят ещё 36 человек рядом с вами и по тегам. Вы подписаны на Тропу — пришлём её дополнения.</div>
-   <div style="text-align:left"><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">На ваш счёт</span><span class="v">+${fmt(x.demos)} DEMOS</span></div><div class="kv"><span class="k">NFT «Поддержал Тропу»</span><span class="v">получен</span></div><div class="kv"><span class="k">Награда автору</span><span class="v">${x.tip?`${x.tip}% · ${fmt(tipOf(x.demos, x.tip))} DEMOS`:'не выбрана'}</span></div></div>
-   <div class="caption c-mut">Награду автору можно изменить, когда Тропа завершится или когда будете выводить DEMOS. В тестовой версии оплата, DEMOS и NFT условные.</div></div>
+   <div style="text-align:left"><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">На ваш счёт</span><span class="v">+${fmt(x.demos)} DEMOS</span></div><div class="kv"><span class="k">Награда автору</span><span class="v">${x.tip?`${x.tip}% · ${fmt(tipOf(x.demos, x.tip))} DEMOS`:'не выбрана'}</span></div></div>
+   <div class="caption c-mut">Награду автору можно изменить, когда Тропа завершится или когда будете выводить DEMOS. В тестовой версии оплата, цена и DEMOS условные.</div></div>
    <div class="foot"><button class="btn primary" data-a="close">Готово</button></div>`; };
 SHEETS.mt = p => { const t = byId(p.id); return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
    <div class="heading">Money Trust</div><div class="body c-sec">Показывает, насколько люди готовы платить за охват этой Тропы.</div>
@@ -1068,14 +1077,14 @@ A['tip-edit'] = el => { const i = +el.dataset.i, l = S.lots[i]; openSheet('tipEd
 A['tip-save'] = () => { const p = S.sheet.params, l = S.lots[p.i]; l.tip = tipValue(p); closeSheet(); render(false); toast(l.tip?`Награда автору: ${l.tip}%`:'Без награды автору'); };
 A['x3d-other'] = () => { const p = S.sheet.params; p.other = true; p.amount = +p.otherVal || 0; renderSheet(); const i=document.getElementById('x3d-other-in'); if(i) i.focus(); };
 A.resident = () => { S.residentOk = !S.residentOk; renderSheet(); };
-A['x3d-pay'] = el => { const id = el.dataset.id, a = S.sheet.params.amount || 10; S.residentDone = true; const tipNow = tipValue(S.sheet.params);
+A['x3d-pay'] = el => { const id = el.dataset.id, a = S.sheet.params.amount || 10; S.residentDone = true; const tipNow = tipValue(S.sheet.params), rateNow = S.rate; // обмен по цене, которая была на экране в момент оплаты
   openSheet('paying', {amount:a});
-  setTimeout(()=>{ const t = byId(id); const demos = a*RATE;
+  setTimeout(()=>{ const t = byId(id); const demos = a*rateNow;
     t.my.x3d = {amount:a, demos, viewed:0, fwd:0, at:Date.now()};
     if (!t.my.shared){ t.shares++; t.my.shared = true; } t.x3d++; t.my.subscribed = true;
     const tip = tipNow; t.my.x3d.tip = tip;
     S.lots.push({at:Date.now(), demos, trail:id, title:t.frags[0].text.slice(0,34)+'…', ton:a, author:t.author, tip}); // каждая покупка — отдельно, для комиссии при выводе
-    S.myX3d.unshift({title:t.frags[0].text.slice(0,34)+'…', st:'На счёте', info:`${a} TON · NFT получен`, rew:`${fmt(demos)} DEMOS`});
+    S.myX3d.unshift({title:t.frags[0].text.slice(0,34)+'…', st:'На счёте', info:`${a} TON`, rew:`${fmt(demos)} DEMOS`});
     haptic('heavy'); openSheet('boosted', {id}); refreshCard(id); }, 1400); };
 function simulateBoost(id){ const t = byId(id); const iv = setInterval(()=>{ const x = t.my.x3d; if(!x){clearInterval(iv);return;}
   x.viewed = Math.min(36, x.viewed + 3 + Math.floor(Math.random()*4)); if (Math.random()>.55) x.fwd = Math.min(6, x.fwd+1);
