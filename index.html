@@ -646,10 +646,18 @@ const obPage = (icon, title, body, actions, extra='') => `<div class="screen"><d
   <div class="icon-circle" style="background:var(--bg-accent-soft);color:var(--t-accent)">${icon}</div><div class="title">${title}</div><div class="body c-sec">${body}</div>${extra}</div>
   <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom));display:flex;flex-direction:column;gap:8px">${actions}</div></div>`;
 SCREENS.invite = () => obPage('🔒','DEMOS — только по приглашению', isStandalone()&&isIOS ? 'Вставьте код приглашения ещё раз — приложение на экране «Домой» не видит то, что было в Safari.' : 'Попросите ссылку у друга, который уже в DEMOS, или вставьте код приглашения.',
-  `<button class="btn primary" data-a="invite-go">Войти</button>`,
+  `<button class="btn primary" data-a="invite-go">Продолжить</button><button class="btn ghost" data-a="login-existing">У меня уже есть аккаунт</button>`,
   `<div class="field" style="text-align:left"><input id="invite-in" placeholder="Ссылка или код приглашения" autocapitalize="off" autocomplete="off"></div><div class="caption c-warn hidden" id="invite-err">Не похоже на ссылку или код приглашения</div>`);
 SCREENS.invited = () => obPage('🤝', `Вас пригласил @${esc(inviteCode())}`, 'DEMOS — биржа правды. Тропы приходят людям рядом и расходятся, только если их раздают. Дальше — уведомления и геопозиция: без них DEMOS не работает.',
-  `<button class="btn primary" data-a="ob-next" data-to="ob1">Продолжить</button>`);
+  `<button class="btn primary" data-a="ob-next" data-to="login">Продолжить</button>`);
+// Вход через Telegram (решено 24.10; веб-версия). Пока без сервера — тестовый вход. Настоящий: кнопка Telegram, данные проверяет сервер токеном бота
+SCREENS.login = () => `<div class="screen"><div class="scroll pad" style="display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;text-align:center">
+  <div class="app-icon">${I.logo}</div><div class="caption c-sec" style="margin-top:-6px">DEMOS</div>
+  <div class="title">${S.params.existing?'Войдите в свой аккаунт':'Вход в DEMOS'}</div>
+  <div class="body c-sec">Без паролей — через ваш Telegram. ${S.params.existing?'Тропы, подписки и счёт вернутся на этом устройстве.':'Аккаунт DEMOS будет привязан к нему.'}</div></div>
+  <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom));display:flex;flex-direction:column;gap:10px">
+  <button class="btn primary" data-a="tg-login">Войти через Telegram</button>
+  <div class="fine c-mut center">DEMOS получит из Telegram имя, ник и фото. Номер телефона не передаётся.${S.params.existing?'':' Ник будет виден другим в DEMOS.'}</div></div></div>`;
 SCREENS.install = () => isIOS
   ? obPage('📲','Добавьте DEMOS на экран «Домой»','Так DEMOS открывается с главного экрана, как обычное приложение, и надёжнее приходят уведомления.',
     `<button class="btn primary" data-a="install-ios">Я добавил — открыть с экрана «Домой»</button><button class="btn ghost" data-a="back">Позже</button>`,
@@ -1192,6 +1200,11 @@ A.back = () => back();
 A.close = () => closeSheet();
 A.go = el => go(el.dataset.to, {});
 A['ob-next'] = el => go(el.dataset.to, {}, false);
+// тестовый вход: настоящий вход появится вместе с сервером (имя бота и домен — в @BotFather)
+A['login-existing'] = () => go('login', {existing:true});
+A['tg-login'] = () => { const existing = !!S.params.existing; store.set('tgUser', {username:'marsaon', at:new Date().toISOString(), test:true});
+  if (existing){ obDone(); } else go('ob1', {}, false);
+  toast('Вы вошли через Telegram как @marsaon'); };
 A['terms-check'] = () => { S.params.ok = !S.params.ok; render(false); };
 A['geo-allow'] = () => { toast('Определяем местоположение…');
   locate((r, why) => { if (r) S.mapPoint = {lat:r.lat, lon:r.lon, acc:r.acc, src:'gps', label:''}; else { S.mapPoint = {...S.geo}; locateError(why); }
