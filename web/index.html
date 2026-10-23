@@ -250,6 +250,8 @@ input,textarea{font:inherit;color:inherit}
 .actions .row .btn{height:42px} /* Раздать и X3D · Буст — ниже (23.10) */
 .nick{color:var(--t-primary);font-weight:700}
 .install-banner{display:flex;align-items:center;gap:10px;margin:0 12px 8px;padding:10px 12px;border-radius:14px;background:var(--bg-surface);border:1px solid var(--b-default);flex-shrink:0}
+.app-icon{width:96px;height:96px;border-radius:22px;background:#11151F;border:1px solid var(--b-strong);display:grid;place-items:center;padding-top:4px}
+.app-icon .logo-tri{width:54px;height:auto}
 </style></head>
 <body><div id="app"></div>
 <script>window.DEMOS_WEB=true</script>
@@ -654,7 +656,10 @@ SCREENS.install = () => isIOS
   : obPage('📲','Установите DEMOS на телефон','Так DEMOS открывается с главного экрана, как обычное приложение, и надёжнее приходят уведомления.',
     (installEvt ? `<button class="btn primary" data-a="install-do">Установить приложение</button>` : `<button class="btn primary" data-a="install-manual">Я установил — открыть с главного экрана</button>`) + `<button class="btn ghost" data-a="back">Позже</button>`,
     installEvt ? '' : `<div class="box" style="text-align:left;display:flex;flex-direction:column;gap:8px"><div class="body">1. Откройте меню браузера ⋮</div><div class="body">2. Нажмите «Установить приложение» или «Добавить на главный экран»</div><div class="body">3. Откройте DEMOS с главного экрана</div></div>`);
-SCREENS.opened = () => obPage('✅','Готово — DEMOS на главном экране','Иконка DEMOS (белый треугольник) появилась на главном экране. Дальше открывайте приложение с неё.',`<button class="btn ghost" data-a="back">Вернуться в ленту</button>`);
+SCREENS.opened = () => `<div class="screen"><div class="scroll pad" style="display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;text-align:center">
+  <div class="app-icon">${I.logo}</div><div class="caption c-sec" style="margin-top:-6px">DEMOS</div>
+  <div class="title">Готово — DEMOS на главном экране</div><div class="body c-sec">Иконка DEMOS (белый треугольник) появилась на главном экране. Дальше открывайте приложение с неё.</div></div>
+  <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))"><button class="btn ghost" data-a="back">Вернуться в ленту</button></div></div>`;
 SCREENS.notifReq = () => obPage('🔔','Включите уведомления','Так вы узнаете, когда вам раздали Тропу рядом, когда в Тропе из ваших подписок появилось дополнение и когда вас поблагодарили. Без уведомлений DEMOS не работает.',
   `<button class="btn primary" data-a="notif-req">Включить уведомления</button>`);
 SCREENS.notifOff = () => obPage('⚠️','Уведомления выключены', isIOS ? 'Чтобы продолжить, разрешите уведомления: Настройки → Уведомления → DEMOS. Затем вернитесь сюда.' : 'Чтобы продолжить, разрешите уведомления для DEMOS: нажмите на значок слева от адреса или откройте Настройки → Приложения → DEMOS → Уведомления. Затем вернитесь сюда.',
@@ -821,7 +826,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':'веб'} · версия 0.36 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':'веб'} · версия 0.37 · тестовые данные</div></div></div>`;
 
 SCREENS.reward = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Вся сумма превращается в DEMOS на вашем счёте. Это не обещание дохода.</div>
