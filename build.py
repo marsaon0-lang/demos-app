@@ -28,4 +28,8 @@ art = f'''<title>DEMOS · Mini App</title>
 <div id="app"></div>
 <script>{js}</script>'''
 (root/'dist'/'artifact.html').write_text(art, encoding='utf-8')
+# веб-версия (решено 23.10): тот же код без telegram-web-app.js, с манифестом — можно добавить на главный экран телефона
+web = page(False).replace('<title>DEMOS</title>', '<title>DEMOS</title>\n<link rel="manifest" href="manifest.webmanifest">\n<link rel="apple-touch-icon" href="icon-192.png">\n<link rel="icon" href="icon-192.png">\n<meta name="apple-mobile-web-app-capable" content="yes">\n<meta name="mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">\n<meta name="apple-mobile-web-app-title" content="DEMOS">')
+(root/'dist'/'web').mkdir(exist_ok=True)
+(root/'dist'/'web'/'index.html').write_text(web, encoding='utf-8')
 print('ok', len(page(False)))
