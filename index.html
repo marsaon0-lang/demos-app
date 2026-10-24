@@ -431,11 +431,13 @@ const $app = document.getElementById('app');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,' ');
 // валюта (решено 23.10): веб-версия — SOL (0,01 / 0,1 / 1), Telegram — TON (1 / 10 / 100). Внутри суммы хранятся в «единицах» (1 / 10 / 100), на экране — в валюте версии
-const CUR = WEB ? 'SOL' : 'TON', CURK = WEB ? 0.01 : 1;
+// Telegram-версия — на очках (решено 24.10): без денег, токена и вывода; очки дают при входе и за раздачи, тратятся на X3D и благодарности
+const PTS = !WEB;
+const CUR = WEB ? 'SOL' : 'очков', CURK = WEB ? 0.01 : 10;
 const numRu = n => { const r = Math.round(n*1000)/1000; return Math.abs(r) >= 1000 ? fmt(r) : String(r).replace('.',','); };
-const cur = n => numRu(n*CURK) + ' ' + CUR;
+const cur = n => PTS ? fmt(Math.round(n*CURK)) + ' очков' : numRu(n*CURK) + ' ' + CUR;
 const rateLine = r => `1 ${CUR} = ${fmt(r/CURK)} DEMOS`;
-const curText = s => WEB ? String(s).replace(/(\d[\d\s]*(?:,\d+)?)\s?TON/g, (m, n) => cur(parseFloat(n.replace(/\s/g,'').replace(',','.')))) : String(s);
+const curText = s => String(s).replace(/(\d[\d\s]*(?:,\d+)?)\s?TON/g, (m, n) => cur(parseFloat(n.replace(/\s/g,'').replace(',','.'))));
 const haptic = (t='light') => { try{ tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred(t); }catch(e){} };
 
 // ---------- состояние ----------
@@ -570,7 +572,7 @@ function actionsHTML(t){
     const x = m.x3d;
     return `<div class="actions"><div class="part">
       <div class="top"><span class="strong">Вы поддержали Тропу</span>${strengthHTML(t.strength,t.trend)}</div>
-      <div class="top"><span class="heading">+${fmt(x.demos)} DEMOS</span><button class="mt-mini" data-a="mt" data-id="${t.id}"><span class="c-sec">${cur(x.amount)} ·</span>${mtTri(t.mtOf)}<b>${t.mtOf} из 100</b></button></div>
+      <div class="top"><span class="heading">${PTS ? ptsN(x.pts||Math.round(x.amount*CURK)) : `+${fmt(x.demos)} DEMOS`}</span><button class="mt-mini" data-a="mt" data-id="${t.id}"><span class="c-sec">${PTS?'X3D':cur(x.amount)} ·</span>${mtTri(t.mtOf)}<b>${t.mtOf} из 100</b></button></div>
     </div></div>`;
   }
   const shareBtn = m.shared ? '' : `<button class="btn secondary" data-a="share" data-id="${t.id}">${I.share}<span>Раздать</span><span class="cnt">${fmt(t.shares)}</span></button>`;
@@ -598,7 +600,7 @@ const obSlide = (i, big, title, text, next) => `<div class="screen">
     <div class="title">${title}</div><div class="body c-sec">${text}</div></div>
   <div class="pad" style="padding-bottom:calc(24px + var(--safe-bottom));display:flex;flex-direction:column;gap:16px"><div class="dots"><i class="${i===1?'on':''}"></i><i class="${i===2?'on':''}"></i><i class="${i===3?'on':''}"></i></div><button class="btn primary" data-a="ob-next" data-to="${next}">Далее</button></div></div>`;
 SCREENS.ob1 = () => obSlide(1,'108','Правду разносят люди','В DEMOS нет подписок на людей и поиска Троп. Новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Важное доходит само.','ob2');
-SCREENS.ob2 = () => obSlide(2,'12 → 36','X3D — буст для важного','Если Тропа важна, усильте её: X3D доставит её 36 людям вместо 12. Вся сумма превращается в DEMOS и остаётся на вашем счёте.','terms');
+SCREENS.ob2 = () => obSlide(2,'12 → 36','X3D — буст для важного',`Если Тропа важна, усильте её: X3D доставит её 36 людям вместо 12. ${PTS?'В Telegram-версии буст — на очках: их дают при входе и за раздачи.':'Вся сумма превращается в DEMOS и остаётся на вашем счёте.'}`,'terms');
 SCREENS.terms = () => `<div class="screen"><div class="scroll pad" style="display:flex;flex-direction:column;justify-content:center;gap:14px">
   <div class="title">Прежде чем начать</div>
   <div class="body c-sec">DEMOS работает по правилам: без подписок на людей, одна новая Тропа в день, опубликованные Тропы не удаляются, незаконный контент модерируется.</div>
@@ -717,7 +719,7 @@ function profileHTML(){
   const head = `<div class="pad" style="padding-top:16px;display:flex;flex-direction:column;gap:12px">
     <div><div class="title">@marsaon</div><div class="caption c-sec">Москва · Ваши соцсети: 2</div></div>
     <div style="display:flex;gap:8px"><button class="btn secondary" style="height:38px;font-size:14px" data-a="go" data-to="about">О DEMOS</button><button class="btn secondary" style="height:38px;font-size:14px" data-a="go" data-to="edit">Изменить</button><button class="btn secondary" style="height:38px;font-size:14px" data-a="go-subs">Подписки</button></div>
-    <div class="seg"><button class="${S.profileTab==='trails'?'on':''}" data-a="proftab" data-t="trails">Мои Тропы</button><button class="${S.profileTab==='wallet'?'on':''}" data-a="proftab" data-t="wallet">Кошелёк</button></div></div>`;
+    <div class="seg"><button class="${S.profileTab==='trails'?'on':''}" data-a="proftab" data-t="trails">Мои Тропы</button><button class="${S.profileTab==='wallet'?'on':''}" data-a="proftab" data-t="wallet">${PTS?'Очки':'Кошелёк'}</button></div></div>`;
   const body = S.profileTab==='trails' ? myTrailsHTML() : walletHTML();
   return `<div class="screen"><div class="scroll">${head}${body}</div>${bottomNav()}</div>`;
 }
@@ -735,6 +737,14 @@ const daysHeld = l => Math.floor((Date.now()-l.at)/86400000);
 const daysLeft = l => Math.max(0, LOCK_DAYS - daysHeld(l));
 const canOut = l => daysHeld(l) >= LOCK_DAYS;
 const balance = () => S.lots.reduce((a,l)=>a+l.demos,0);
+// очки Telegram-версии: стартовые и за раздачу — параметры (числа — предложение Claude 24.10, меняются в админке)
+const PTS_START = 1000, PTS_SHARE = 10;
+if (PTS){ S.pts = store.get('pts', null) || {bal:PTS_START, log:[{at:Date.now(), text:'Стартовые очки', d:PTS_START}]}; }
+const ptsBal = () => PTS ? S.pts.bal : 0;
+const ptsAdd = (d, text) => { S.pts.bal += d; S.pts.log.unshift({at:Date.now(), text, d}); S.pts.log = S.pts.log.slice(0,50); store.set('pts', S.pts); };
+const ptsWord = n => { const a=Math.abs(n)%100, b=a%10; return (a>10&&a<20)?'очков':b===1?'очко':(b>=2&&b<=4)?'очка':'очков'; };
+const ptsN = n => `${fmt(n)} ${ptsWord(n)}`;
+const ptsLack = need => `Не хватает очков: у вас ${ptsN(ptsBal())}. За каждую раздачу Тропы — +${PTS_SHARE}.`;
 // награда автору: % от покупки, который зритель оставляет автору; передаётся при выводе или когда Тропа завершится
 // порядок (решено 23.10): сначала комиссия сервиса 6% (в ней и реферальный 1%), награда автору — % от остатка
 const afterFee = demos => Math.round(demos*(1-FEE/100));
@@ -761,7 +771,7 @@ function lotHTML(l){ const d = daysHeld(l), left = daysLeft(l), ok = canOut(l), 
     <div class="prog" style="height:4px"><i style="width:${pct}%"></i></div>
     <div class="caption c-mut">${ok?`Можно вывести · комиссия ${FEE}%`:`Вывод через ${left} ${dayWord(left)} · комиссия ${FEE}%`}</div>
     <div class="top caption" style="margin-top:4px;border-top:1px solid var(--b-default);padding-top:8px"><span class="c-sec">${l.tip?`Автору @${esc(l.author||'')}: ${l.tip}% · ${fmt(lotTip(l))} DEMOS`:'Награда автору не выбрана'}</span><button class="c-acc" style="font-weight:600" data-a="tip-edit" data-i="${S.lots.indexOf(l)}">Изменить</button></div></div>`; }
-function walletHTML(){
+function walletHTML(){ if (PTS) return pointsHTML();
   const w = S.wallet, bal = balance();
   return `<div class="pad" style="display:flex;flex-direction:column;gap:12px;padding-bottom:24px">
     <div class="box"><div class="caption c-sec">На счёте</div><div style="display:flex;align-items:baseline;gap:6px"><span class="title">${fmt(bal)}</span><span class="c-sec">DEMOS</span></div>
@@ -780,7 +790,7 @@ function walletHTML(){
 }
 
 // Благодарности автору — в личном кабинете (решено 23.10): кто, сколько, за какую Тропу, сообщение. Ответа внутри DEMOS нет — можно написать человеку в Telegram или соцсетях.
-SCREENS.thanks = () => `<div class="screen">${topbar('Благодарности')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:12px;padding-bottom:24px">
+const thanksWeb = () => `<div class="screen">${topbar('Благодарности')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:12px;padding-bottom:24px">
   <div class="box center" style="padding:18px"><div class="caption c-sec">Вас поблагодарили</div><div style="display:flex;justify-content:center;align-items:baseline;gap:6px;margin-top:4px"><span class="title" style="font-size:32px">37</span><span class="c-sec">человек</span></div><div class="caption c-sec">11 100 DEMOS за 30 дней</div></div>
   <div class="caption c-mut">Сообщения приходят в одну сторону. Чтобы ответить, нажмите на ник — там Telegram и соцсети человека. DEMOS от благодарностей лежат на счёте 14 дней, вывод с комиссией 6%.</div>
   ${THANKS.map(th=>{ const tr = byId(th.trail); return `<div class="box" style="display:flex;flex-direction:column;gap:6px">
@@ -833,14 +843,14 @@ function pushCard(){ if (!WEB) return '';
 SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:18px;padding-bottom:24px">
   ${pushCard()}
   <div class="title" style="font-size:26px;line-height:1.3;margin:10px 0">Правда —<br>это мнение, выдержавшее<br>равную конкуренцию</div>
-  ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди','«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
+  ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди',PTS?'«Раздать» — голос бесплатно. X3D — голос, на который человек тратит очки, расширяя охват до 36.':'«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':(ANDROID_APP?'Android':'веб')} · версия 0.39 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':(ANDROID_APP?'Android':'веб')} · версия 0.40 · тестовые данные</div></div></div>`;
 
-SCREENS.reward = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
+const rewardWeb = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Вся сумма превращается в DEMOS на вашем счёте. Это не обещание дохода.</div>
-  ${[['1. Оплата',`${numRu(1*CURK)}, ${numRu(10*CURK)} или ${cur(100)}.`],['2. Обмен','Вся сумма сразу превращается в DEMOS по текущей цене. Цена в окне оплаты обновляется автоматически каждые 60 секунд; обмен — по цене, которая была на экране в момент оплаты.'],['3. Счёт','DEMOS лежат на вашем счёте в приложении. Каждая покупка хранится отдельно.'],['4. Вывод','Вывести DEMOS на свой кошелёк можно через 14 дней после покупки. Комиссия — 6%.'],['5. Охват','Одинаковый при любой сумме: +36 человек. Сумма влияет только на количество DEMOS и на Money Trust Тропы.'],['6. Приглашения','Пригласивший получает 1% от каждого X3D и благодарности друга в ${CUR} — через 14 дней после покупки, 6 месяцев. Это часть комиссии платформы, у вас ничего не удерживается.'],['7. Пилот','На пилоте DEMOS — внутренние очки, вывода на кошелёк ещё нет.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="caption c-sec">${b[1]}</div></div>`).join('')}
+  ${[['1. Оплата',`${numRu(1*CURK)}, ${numRu(10*CURK)} или ${cur(100)}.`],['2. Обмен','Вся сумма сразу превращается в DEMOS по текущей цене. Цена в окне оплаты обновляется автоматически каждые 60 секунд; обмен — по цене, которая была на экране в момент оплаты.'],['3. Счёт','DEMOS лежат на вашем счёте в приложении. Каждая покупка хранится отдельно.'],['4. Вывод','Вывести DEMOS на свой кошелёк можно через 14 дней после покупки. Комиссия — 6%.'],['5. Охват','Одинаковый при любой сумме: +36 человек. Сумма влияет только на количество DEMOS и на Money Trust Тропы.'],['6. Приглашения',`Пригласивший получает 1% от каждого X3D и благодарности друга в ${CUR} — через 14 дней после покупки, 6 месяцев. Это часть комиссии платформы, у вас ничего не удерживается.`],['7. Пилот','На пилоте DEMOS — внутренние очки, вывода на кошелёк ещё нет.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="caption c-sec">${b[1]}</div></div>`).join('')}
   <div class="box"><div class="strong">Пример</div><div class="caption c-sec">Вы оплатили ${cur(10)}. По курсу ${rateLine(300)} на ваш счёт придёт 3 000 DEMOS. Через 14 дней их можно вывести: 2 820 DEMOS на кошелёк после комиссии 6%. Курс в примере условный.</div></div>
   <div class="caption c-mut">Цена DEMOS не гарантируется. X3D и вывод недоступны в некоторых странах.</div></div></div>`;
 
@@ -920,8 +930,8 @@ const nftCard = (tier, on) => `<button class="nft ${on?'on':''}" data-a="x3d-amt
   ${NFT_IMG[tier.ton] ? `<span class="nft-img"><img src="${NFT_IMG[tier.ton]}" alt="X3D ${cur(tier.ton)}"></span>` : `<span class="nft-art" style="background:linear-gradient(145deg,${tier.g[0]},${tier.g[1]})">
   <svg viewBox="0 0 40 36" class="nft-tri"><path d="M20 3L37 33H3z" fill="none" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>
   <span class="nft-x">X3D</span></span>`}
-  <span class="nft-ton">${cur(tier.ton)}</span><span class="nft-dm">≈ ${fmt(tier.ton*S.rate)} DEMOS</span></button>`;
-SHEETS.x3d = p => { const t = byId(p.id); const a = p.amount || 10;
+  <span class="nft-ton">${cur(tier.ton)}</span><span class="nft-dm">${PTS ? '+36 человек' : `≈ ${fmt(tier.ton*S.rate)} DEMOS`}</span></button>`;
+const x3dWeb = p => { const t = byId(p.id); const a = p.amount || 10;
   return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
    <div style="display:flex;justify-content:space-between;align-items:center"><div class="heading">Буст Тропы</div>${strengthHTML(t.strength,t.trend)}</div>
    <div class="caption c-sec">Тропу увидят ещё 36 человек рядом с вами и по тегам</div>
@@ -954,18 +964,18 @@ SHEETS.priceChanged = p => { const d = (p.rate/p.old-1)*100, sign = d>0?'+':'−
    <div class="fine c-mut">Обмен пройдёт по новой цене. Если не подтвердить, ничего не спишется.</div></div>
    <div class="foot"><button class="btn primary" data-a="price-confirm">Подтвердить и оплатить ${cur(p.amount)}</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
 SHEETS.paying = p => `<div class="grab"></div><div class="sc center" style="padding-top:10px"><div class="icon-circle" style="background:var(--bg-accent-soft);color:var(--t-accent)">⌛</div><div class="heading">Подтвердите в кошельке</div><div class="caption c-sec" style="margin:6px 0 16px">Откройте кошелёк и подтвердите оплату ${cur(p.amount)}. В тестовой версии оплата пройдёт сама.</div></div>`;
-SHEETS.boosted = p => { const t = byId(p.id), x = t.my.x3d;
+const boostedWeb = p => { const t = byId(p.id), x = t.my.x3d;
   return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">✓</div><div class="heading">Вы поддержали Тропу</div>
    <div class="caption c-sec">Тропу увидят ещё 36 человек рядом с вами и по тегам. Вы подписаны на Тропу — пришлём её дополнения.</div>
    <div style="text-align:left"><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">На ваш счёт</span><span class="v">+${fmt(x.demos)} DEMOS</span></div><div class="kv"><span class="k">Награда автору</span><span class="v">${x.tip?`${x.tip}% · ${fmt(tipOf(x.demos, x.tip))} DEMOS`:'не выбрана'}</span></div></div>
    <div class="caption c-mut">Награду автору можно изменить в кошельке в любой момент, пока она не передана: передаётся при выводе или когда Тропа завершится. В тестовой версии оплата, цена и DEMOS условные.</div></div>
    <div class="foot"><button class="btn primary" data-a="close">Готово</button></div>`; };
 SHEETS.mt = p => { const t = byId(p.id); return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
-   <div class="heading">Money Trust</div><div class="body c-sec">Показывает, насколько люди готовы платить за охват этой Тропы.</div>
-   <div class="box"><div class="title">${curText(t.mt)}</div><div class="caption c-sec">Сколько всего заплатили за X3D этой Тропы.</div></div>
+   <div class="heading">Money Trust</div><div class="body c-sec">${PTS?'Показывает, насколько люди готовы тратить очки на охват этой Тропы.':'Показывает, насколько люди готовы платить за охват этой Тропы.'}</div>
+   <div class="box"><div class="title">${curText(t.mt)}</div><div class="caption c-sec">${PTS?'Сколько всего очков потратили на X3D этой Тропы.':'Сколько всего заплатили за X3D этой Тропы.'}</div></div>
    <div class="box"><div class="strong" style="display:flex;align-items:center;gap:6px">${mtTri(t.mtOf,14)}${t.mtOf} из 100 выбирают X3D</div>
    <div style="display:flex;flex-direction:column;gap:6px;margin:12px 0"><span class="micro c-mut">ЦВЕТ ТРЕУГОЛЬНИКА</span>${[[0,'меньше 3 из 100'],[3,'от 3 до 7'],[8,'от 8 до 14'],[15,'от 15 до 24'],[25,'25 и больше']].map(l=>`<span class="caption c-sec" style="display:flex;align-items:center;gap:8px">${mtTri(l[0])}${l[1]}</span>`).join('')}</div>
-   <div class="caption c-sec">Считаем, сколько из 100 человек, раздавших Тропу бесплатно, перешли на платную раздачу X3D. Здесь — ${t.mtOf}.</div>
+   <div class="caption c-sec">Считаем, сколько из 100 человек, раздавших Тропу бесплатно, перешли на ${PTS?'раздачу X3D':'платную раздачу X3D'}. Здесь — ${t.mtOf}.</div>
    <div class="caption c-mut" style="margin-top:6px">X3D включает в себя бесплатную раздачу, поэтому каждый, кто купил X3D, уже входит в эти 100. Один человек считается один раз.</div></div></div>
    <div class="foot"><button class="btn secondary" data-a="close">Понятно</button></div>`; };
 SHEETS.comments = p => { const t = byId(p.id);
@@ -985,7 +995,7 @@ const tonStr = n => String(Math.round(n*100)/100).replace('.',',');
 const thankTon = p => p.v==='custom' ? ((parseFloat(String(p.custom||'').replace(',','.'))||0) / CURK) : (p.v||0);
 const resBox = () => S.residentDone?'':`<button type="button" class="check ${S.residentOk?'on':''}" data-a="resident"><span class="bx"></span><span>Я согласен с тем, что цена не гарантируется, и подтверждаю, что не являюсь резидентом страны из списка ограничений</span></button>`;
 // благодарность автору (решено 23.10): отдельная покупка DEMOS от 1 TON + сообщение до 500 знаков; автор видит ник и сообщение, ответа внутри DEMOS нет
-SHEETS.thank = p => { const t = byId(p.id), v = thankTon(p), ok = v>=1;
+const thankWeb = p => { const t = byId(p.id), v = thankTon(p), ok = v>=1;
   return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
    <div class="heading">Поблагодарить @${esc(t.author)}</div>
    <div class="caption c-sec">Отдельная покупка: ${CUR} превращаются в DEMOS по текущей цене и уходят автору. Минимум ${cur(1)}.</div>
@@ -997,12 +1007,78 @@ SHEETS.thank = p => { const t = byId(p.id), v = thankTon(p), ok = v>=1;
    <div class="kv"><span class="k">Автору на счёт</span><span class="v" id="thank-out">${ok?'≈ '+fmt(Math.round(v*S.rate))+' DEMOS':'—'}</span></div>
    <div class="fine c-mut">Автор увидит ваш ник и сообщение и сможет написать вам в Telegram или соцсетях из вашего профиля. Ответа внутри DEMOS нет. DEMOS лежат у автора 14 дней, комиссия 6% — при выводе. В Money Trust благодарность не входит. Цена DEMOS не гарантируется.</div></div>
    <div class="foot">${resBox()}<button class="btn primary" id="thank-pay" data-a="thank-pay" data-id="${t.id}" ${ok&&(S.residentOk||S.residentDone)?'':'disabled'}>${ok?`Оплатить ${cur(v)}`:'Выберите сумму'}</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
+
+// ---------- Telegram-версия на очках (24.10): окна X3D и благодарности, счёт очков ----------
+const ptsFine = 'Очки — только внутри Telegram-версии DEMOS: их нельзя купить, вывести или обменять на деньги. Дают при входе и за раздачи.';
+const x3dPts = p => { const t = byId(p.id); const a = p.amount || 10, cost = Math.round(a*CURK), ok = ptsBal() >= cost;
+  return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
+   <div style="display:flex;justify-content:space-between;align-items:center"><div class="heading">Буст Тропы</div>${strengthHTML(t.strength,t.trend)}</div>
+   <div class="caption c-sec">Тропу увидят ещё 36 человек рядом с вами и по тегам</div>
+   <div class="nft-row">${NFT_TIERS.map(tr=>nftCard(tr, tr.ton===a)).join('')}</div>
+   <div><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">Спишется</span><span class="v">${ptsN(cost)}</span></div><div class="kv"><span class="k">У вас</span><span class="v ${ok?'':'c-warn'}">${ptsN(ptsBal())}</span></div></div>
+   <div class="tipbox"><div class="top"><span class="strong">Награда автору</span><span class="caption c-mut">необязательно</span></div>
+   <div class="caption c-sec">Сколько очков из этого буста отдать @${esc(t.author)}. Автор получит их сразу.</div>
+   ${tipChooser(cost, p.tip, p.tipCustom)}</div>
+   <div class="fine c-mut">${ptsFine}</div>
+   <button class="caption c-acc" style="text-align:left" data-a="go" data-to="reward">Как работает X3D →</button>
+</div>
+   <div class="foot">${ok?'':`<div class="caption c-warn center">${ptsLack(cost)}</div>`}<button class="btn primary" id="x3d-pay" data-a="x3d-pay" data-id="${t.id}" ${ok?'':'disabled'}>Потратить ${ptsN(cost)}</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
+const boostedPts = p => { const t = byId(p.id), x = t.my.x3d, tipPts = Math.round(x.pts*(x.tip||0)/100);
+  return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">✓</div><div class="heading">Вы поддержали Тропу</div>
+   <div class="caption c-sec">Тропу увидят ещё 36 человек рядом с вами и по тегам. Вы подписаны на Тропу — пришлём её дополнения.</div>
+   <div style="text-align:left"><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">Потрачено</span><span class="v">${ptsN(x.pts)}</span></div><div class="kv"><span class="k">Награда автору</span><span class="v">${x.tip?`${x.tip}% · ${ptsN(tipPts)}`:'не выбрана'}</span></div><div class="kv"><span class="k">Осталось у вас</span><span class="v">${ptsN(ptsBal())}</span></div></div></div>
+   <div class="foot"><button class="btn primary" data-a="close">Готово</button></div>`; };
+const thankPts = p => { const t = byId(p.id), v = thankTon(p), pts = Math.round(v*CURK), ok = v>=1, enough = ptsBal() >= pts;
+  return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
+   <div class="heading">Поблагодарить @${esc(t.author)}</div>
+   <div class="caption c-sec">Очки уходят автору сразу. Минимум ${ptsN(10)}. У вас ${ptsN(ptsBal())}.</div>
+   <div class="amounts">${THANK_OPTS.map(x=>`<button class="amt tipb ${p.v===x?'on':''}" data-a="thank-v" data-v="${x}"><span>${fmt(x*CURK)}</span><small>очков</small></button>`).join('')}<button class="amt tipb ${p.v==='custom'?'on':''}" data-a="thank-v" data-v="custom"><span>Своя</span><small id="thank-small">${p.v==='custom'&&ok?fmt(pts):'от 10'}</small></button></div>
+   ${p.v==='custom'?`<div class="field" style="display:flex;gap:8px;align-items:center"><input id="thank-custom" type="text" inputmode="numeric" maxlength="7" placeholder="Сколько очков, от 10" value="${esc(p.custom||'')}" data-input="thank-custom"><span class="c-sec">очков</span></div>`:''}
+   <div><div style="display:flex;justify-content:space-between"><span class="caption c-sec">Сообщение автору · необязательно</span><span class="caption c-mut" id="thank-cnt">${(p.text||'').length}/500</span></div>
+   <div class="field"><textarea maxlength="500" rows="3" data-input="thank-text" placeholder="Напишите, за что благодарите">${esc(p.text||'')}</textarea></div></div>
+   <div class="kv"><span class="k">Автору</span><span class="v" id="thank-out">${ok?ptsN(pts):'—'}</span></div>
+   <div class="fine c-mut">Автор увидит ваш ник и сообщение и сможет написать вам в Telegram или соцсетях из вашего профиля. Ответа внутри DEMOS нет. В Money Trust благодарность не входит. ${ptsFine}</div></div>
+   <div class="foot"><div class="caption c-warn center ${ok&&!enough?'':'hidden'}" id="thank-lack">${ptsLack(pts)}</div><button class="btn primary" id="thank-pay" data-a="thank-pay" data-id="${t.id}" ${ok&&enough?'':'disabled'}>${ok?`Отправить ${ptsN(pts)}`:'Выберите сумму'}</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
+const thankedPts = p => { const t = byId(p.id); return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">♥</div><div class="heading">Спасибо, что поблагодарили</div><div class="caption c-sec">@${t.author} получил ${ptsN(p.v)} за эту Тропу.</div>${p.text?`<div class="box caption" style="text-align:left"><span class="c-mut">Ваше сообщение</span><br>${esc(p.text)}</div>`:''}
+   <div class="box" style="text-align:left"><div class="kv"><span class="k">Поблагодарили за эту Тропу</span><span class="v">38 человек</span></div><div class="kv"><span class="k">Осталось у вас</span><span class="v">${ptsN(ptsBal())}</span></div></div>
+   <div class="caption c-mut">Поблагодарить за одну Тропу можно один раз — кнопки больше не появятся.</div></div><div class="foot"><button class="btn primary" data-a="close">Готово</button></div>`; };
+const thanksPts = () => `<div class="screen">${topbar('Благодарности')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:12px;padding-bottom:24px">
+  <div class="box center" style="padding:18px"><div class="caption c-sec">Вас поблагодарили</div><div style="display:flex;justify-content:center;align-items:baseline;gap:6px;margin-top:4px"><span class="title" style="font-size:32px">37</span><span class="c-sec">человек</span></div><div class="caption c-sec">${ptsN(THANKS.reduce((a,th)=>a+Math.round(th.ton*CURK),0))} за 30 дней</div></div>
+  <div class="caption c-mut">Сообщения приходят в одну сторону. Чтобы ответить, нажмите на ник — там Telegram и соцсети человека. Очки от благодарностей сразу на вашем счёте.</div>
+  ${THANKS.map(th=>{ const tr = byId(th.trail); return `<div class="box" style="display:flex;flex-direction:column;gap:6px">
+    <div class="top" style="display:flex;justify-content:space-between;align-items:center"><button class="strong c-acc" data-a="person" data-v="${esc(th.from)}">@${esc(th.from)}</button><span class="strong c-suc">+${ptsN(Math.round(th.ton*CURK))}</span></div>
+    <div class="caption c-mut">${th.at} · ${tr?esc(tr.frags[0].text.slice(0,40))+'…':''}</div>
+    ${th.text?`<div class="body">${esc(th.text)}</div>`:'<div class="caption c-mut">Без сообщения</div>'}</div>`; }).join('')}
+  <div class="caption c-mut center">Ещё 33 благодарности — в рабочей версии</div></div></div>`;
+const rewardPts = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
+  <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. В Telegram-версии DEMOS буст и благодарности — на очках.</div>
+  ${[['1. Очки',`${ptsN(PTS_START)} при входе и +${PTS_SHARE} за каждую бесплатную раздачу Тропы.`],['2. Буст',`${ptsN(10)}, ${ptsN(100)} или ${ptsN(1000)}. Очки списываются, Тропа получает +36 человек.`],['3. Охват','Одинаковый при любой сумме: +36 человек. Сумма влияет только на Money Trust Тропы.'],['4. Награда автору','Часть очков буста можно отдать автору — он получит их сразу.'],['5. Благодарность','Очки автору отдельно от буста, с сообщением до 500 знаков. За одну Тропу — один раз.'],['6. Только очки','Очки нельзя купить, вывести или обменять на деньги.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="caption c-sec">${b[1]}</div></div>`).join('')}</div></div>`;
+function pointsHTML(){
+  const log = S.pts.log.slice(0,8);
+  return `<div class="pad" style="display:flex;flex-direction:column;gap:12px;padding-bottom:24px">
+    <div class="box"><div class="caption c-sec">Очки</div><div style="display:flex;align-items:baseline;gap:6px"><span class="title">${fmt(ptsBal())}</span><span class="c-sec">${ptsWord(ptsBal())}</span></div>
+      <div class="caption c-sec" style="margin-top:2px">${ptsN(PTS_START)} при входе и +${PTS_SHARE} за каждую раздачу. Тратятся на X3D и благодарности. Купить, вывести или обменять на деньги нельзя.</div></div>
+    <div class="strong" style="margin-top:6px">История</div>
+    <div>${log.map(e=>`<div class="kv"><span>${esc(e.text)}</span><span class="strong ${e.d>0?'c-suc':''}">${e.d>0?'+':'−'}${fmt(Math.abs(e.d))}</span></div>`).join('')}</div>
+    <div class="strong" style="margin-top:6px">Мои X3D</div>
+    ${S.myX3d.map(x=>`<div class="kv"><div><div class="strong">${esc(x.title)}</div><div class="caption c-mut">${curText(x.info)}</div></div><span class="badge acc">Буст</span></div>`).join('')}
+    <div class="strong" style="margin-top:6px">Вы как автор</div>
+    <button class="kv" style="width:100%;text-align:left" data-a="go" data-to="thanks"><div><div>Благодарности</div><div class="caption c-mut">37 человек · с сообщениями</div></div><span class="c-acc">Открыть ›</span></button>
+    <div class="box" style="margin-top:6px"><div class="strong">Пригласите друзей</div><div class="caption c-sec" style="margin:4px 0 8px">Отправьте ссылку — друг откроет DEMOS в Telegram.</div>
+      <div style="display:flex;gap:8px;align-items:center"><div class="field" style="flex:1;padding:10px 12px"><span class="caption">${refLinkShort()}</span></div><button class="btn secondary" style="width:auto;padding:0 14px;height:42px;font-size:14px" data-a="copy">Копировать</button></div></div></div>`;
+}
+SHEETS.x3d = p => PTS ? x3dPts(p) : x3dWeb(p);
+SHEETS.boosted = p => PTS ? boostedPts(p) : boostedWeb(p);
+SHEETS.thank = p => PTS ? thankPts(p) : thankWeb(p);
+SHEETS.thanked = p => PTS ? thankedPts(p) : thankedWeb(p);
+SCREENS.thanks = () => PTS ? thanksPts() : thanksWeb();
+SCREENS.reward = () => PTS ? rewardPts() : rewardWeb();
 SHEETS.person = p => { const a = PEOPLE[p.nick] || AUTHORS[p.nick] || {city:'',about:'',socials:[]};
   return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:10px">
    <div><div class="heading">@${esc(p.nick)}</div><div class="caption c-sec">${esc(a.city||'')}</div></div>${a.about?`<div class="body">${esc(a.about)}</div>`:''}
    ${a.socials.length?`<div class="caption c-mut" style="margin-top:4px">Соцсети</div>${a.socials.map(s=>`<button class="kv" style="width:100%;text-align:left" data-a="link" data-v="${s[2]}"><span><span class="strong">${s[0]} · ${s[1]}</span></span><span class="c-acc">›</span></button>`).join('')}`:'<div class="caption c-mut">Соцсети не указаны</div>'}</div>
    <div class="foot"><button class="btn ghost" data-a="close">Закрыть</button></div>`; };
-SHEETS.thanked = p => { const t = byId(p.id); return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">♥</div><div class="heading">Спасибо, что поблагодарили</div><div class="caption c-sec">@${t.author} получит ${fmt(p.v)} DEMOS${p.ton?` (${cur(p.ton)})`:''} за эту Тропу.</div>${p.text?`<div class="box caption" style="text-align:left"><span class="c-mut">Ваше сообщение</span><br>${esc(p.text)}</div>`:''}
+const thankedWeb = p => { const t = byId(p.id); return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">♥</div><div class="heading">Спасибо, что поблагодарили</div><div class="caption c-sec">@${t.author} получит ${fmt(p.v)} DEMOS${p.ton?` (${cur(p.ton)})`:''} за эту Тропу.</div>${p.text?`<div class="box caption" style="text-align:left"><span class="c-mut">Ваше сообщение</span><br>${esc(p.text)}</div>`:''}
    <div class="box" style="text-align:left"><div class="kv"><span class="k">Поблагодарили за эту Тропу</span><span class="v">38 человек</span></div><div class="kv"><span class="k">Всего благодарностей</span><span class="v c-suc">12 896 DEMOS</span></div></div>
    <div class="caption c-mut">Поблагодарить за одну Тропу можно один раз — кнопки больше не появятся.</div></div><div class="foot"><button class="btn primary" data-a="close">Готово</button></div>`; };
 SHEETS.menu = p => { const t = byId(p.id);
@@ -1242,7 +1318,7 @@ A.tag = el => { const v = el.dataset.tag; const on = !S.subs.has(v); on?S.subs.a
   toast(on?`Вы подписались на тег «${esc(v)}»`:`Вы отписались от тега «${esc(v)}»`);
   if (S.screen==='main' && S.feedTab==='subs') render(false); };
 A.subscribe = el => { const t = byId(el.dataset.id); t.my.subscribed = !t.my.subscribed; refreshCard(t.id); toast(t.my.subscribed?'Вы подписаны на Тропу — пришлём её дополнения':'Подписка отменена'); };
-A.share = el => { const t = byId(el.dataset.id); t.my.shared = true; t.shares++; haptic('medium'); refreshCard(t.id); toast('Тропу получат ещё 12 человек рядом с вами'); };
+A.share = el => { const t = byId(el.dataset.id); t.my.shared = true; t.shares++; haptic('medium'); if (PTS) ptsAdd(PTS_SHARE, 'Раздача Тропы'); refreshCard(t.id); toast(PTS ? `Тропу получат ещё 12 человек · +${PTS_SHARE} очков` : 'Тропу получат ещё 12 человек рядом с вами'); };
 A.x3d = el => { if (S.restricted) return toast('Буст недоступен в вашей стране. Раздавать Тропу бесплатно можно.'); openSheet('x3d', {id:el.dataset.id, amount:10}); };
 A['x3d-amt'] = el => { S.sheet.params.amount = +el.dataset.v; renderSheet(); haptic(); };
 A['tip-pick'] = el => { const v = el.dataset.v; const p = S.sheet.params; p.tip = v==='custom' ? 'custom' : (p.tip===+v && v!=='0' ? null : +v); renderSheet(); if (v==='custom'){ const i=document.getElementById('tip-custom'); if(i) i.focus(); } };
@@ -1254,17 +1330,27 @@ A.resident = () => { S.residentOk = !S.residentOk; renderSheet(); };
 // окно «Цена DEMOS изменилась», покупатель подтверждает ещё раз (решено 23.10). В тестовой версии свежая цена условно сдвигается до ±2%.
 const PRICE_TOLERANCE = 1; // %
 const freshQuote = () => Math.max(1, Math.round(S.rate*(1+(Math.random()*4-2)/100)));
-A['x3d-pay'] = el => { const id = el.dataset.id, a = S.sheet.params.amount || 10; S.residentDone = true;
+A['x3d-pay'] = el => { const id = el.dataset.id, a = S.sheet.params.amount || 10; if (PTS) return payPts(id, a, tipValue(S.sheet.params)); S.residentDone = true;
   const tip = tipValue(S.sheet.params), shown = S.rate, fresh = freshQuote();
   if (Math.abs(fresh/shown-1)*100 > PRICE_TOLERANCE){ haptic('medium'); return openSheet('priceChanged', {id, amount:a, tip, old:shown, rate:fresh}); }
   doPay(id, a, tip, shown); };
 A['price-confirm'] = () => { const p = S.sheet.params; S.rate = p.rate; S.rateAt = Date.now(); if (p.kind==='thank') doThank(p.id, p.amount, p.text, p.rate); else doPay(p.id, p.amount, p.tip, p.rate); };
-A['thank-pay'] = () => { const p = S.sheet.params, v = thankTon(p); if (v<1) return; S.residentDone = true; const shown = S.rate, fresh = freshQuote();
+A['thank-pay'] = () => { const p = S.sheet.params, v = thankTon(p); if (v<1) return; if (PTS) return thankPtsDo(p.id, v, p.text||''); S.residentDone = true; const shown = S.rate, fresh = freshQuote();
   if (Math.abs(fresh/shown-1)*100 > PRICE_TOLERANCE){ haptic('medium'); return openSheet('priceChanged', {kind:'thank', id:p.id, amount:v, text:p.text||'', old:shown, rate:fresh}); }
   doThank(p.id, v, p.text||'', shown); };
 function doThank(id, ton, text, rate){ openSheet('paying', {amount:ton});
   setTimeout(()=>{ const t = byId(id), demos = Math.round(ton*rate); t.my.thanked = true; S.sentThanks.unshift({to:t.author, trail:id, ton, demos, text});
     haptic('heavy'); openSheet('thanked', {id, v:demos, ton, text}); }, 1400); }
+// очки (Telegram-версия): списание сразу, без кошелька и цены
+function payPts(id, a, tip){ const t = byId(id), cost = Math.round(a*CURK); if (ptsBal() < cost) return;
+  ptsAdd(-cost, 'X3D · ' + t.frags[0].text.slice(0,24) + '…');
+  t.my.x3d = {amount:a, pts:cost, demos:0, viewed:0, fwd:0, at:Date.now(), tip};
+  if (!t.my.shared){ t.shares++; t.my.shared = true; } t.x3d++; t.my.subscribed = true;
+  S.myX3d.unshift({title:t.frags[0].text.slice(0,34)+'…', st:'Буст', info:ptsN(cost), rew:''});
+  haptic('heavy'); openSheet('boosted', {id}); refreshCard(id); }
+function thankPtsDo(id, v, text){ const t = byId(id), pts = Math.round(v*CURK); if (ptsBal() < pts) return;
+  ptsAdd(-pts, 'Благодарность @' + t.author); t.my.thanked = true; S.sentThanks.unshift({to:t.author, trail:id, ton:v, demos:0, pts, text});
+  haptic('heavy'); openSheet('thanked', {id, v:pts, text}); }
 function doPay(id, a, tip, rate){
   openSheet('paying', {amount:a});
   setTimeout(()=>{ const t = byId(id); const demos = a*rate;
@@ -1364,6 +1450,9 @@ document.addEventListener('input', e => {
   if (k==='thank-text'){ S.sheet.params.text = e.target.value.slice(0,500); const c = document.getElementById('thank-cnt'); if (c) c.textContent = `${S.sheet.params.text.length}/500`; }
   if (k==='thank-custom'){ const p = S.sheet.params; let clean = e.target.value.replace(/[^\d.,]/g,'').replace(/([.,].*)[.,]/,'$1'); if (clean!==e.target.value) e.target.value = clean; p.custom = clean;
     const v = thankTon(p), ok = v>=1; const set=(id,t)=>{const el=document.getElementById(id); if(el) el.textContent=t;};
+    if (PTS){ const pts = Math.round(v*CURK), enough = ptsBal() >= pts; set('thank-out', ok?ptsN(pts):'—'); set('thank-small', ok?fmt(pts):'от 10'); set('thank-lack', ptsLack(pts));
+      const lk = document.getElementById('thank-lack'); if (lk) lk.classList.toggle('hidden', !(ok && !enough));
+      const b = document.getElementById('thank-pay'); if (b){ b.disabled = !(ok && enough); b.textContent = ok?`Отправить ${ptsN(pts)}`:'Выберите сумму'; } return; }
     set('thank-out', ok?'≈ '+fmt(Math.round(v*S.rate))+' DEMOS':'—'); set('thank-small', ok?fmt(Math.round(v*S.rate)):'от '+cur(1));
     const b = document.getElementById('thank-pay'); if (b){ b.disabled = !(ok && (S.residentOk||S.residentDone)); b.textContent = ok?`Оплатить ${cur(v)}`:'Выберите сумму'; } }
   if (k==='addtag-q'){ S.sheet.params.q = e.target.value; clearTimeout(S._qt); S._qt = setTimeout(()=>{ renderSheet(); const i = document.getElementById('addtag-q'); if(i){ i.focus(); const L=i.value.length; i.setSelectionRange(L,L);} }, 250); }
