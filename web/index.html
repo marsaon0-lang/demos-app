@@ -580,7 +580,9 @@ function actionsHTML(t){
     const x = m.x3d;
     return `<div class="actions"><div class="part">
       <div class="top"><span class="strong">Вы поддержали Тропу</span>${strengthHTML(t.strength,t.trend)}</div>
+      ${PTS && x.coef ? `<div class="caption c-sec">№${x.n} · ${coefStr(x.coef)} · вы подписаны на Тропу</div>` : ''}
       <div class="top"><span class="heading">${PTS ? ptsN(x.pts||Math.round(x.amount*CURK)) : `+${fmt(x.demos)} DEMOS`}</span><button class="mt-mini" data-a="mt" data-id="${t.id}"><span class="c-sec">${PTS?'X3D':cur(x.amount)} ·</span>${mtTri(t.mtOf)}<b>${t.mtOf} из 100</b></button></div>
+      ${PTS && x.coef ? `<div data-boost="${t.id}" data-compact="1">${boostBar(x, true)}</div>` : ''}
     </div></div>`;
   }
   const shareBtn = m.shared ? '' : `<button class="btn secondary" data-a="share" data-id="${t.id}">${I.share}<span>Раздать</span><span class="cnt">${fmt(t.shares)}</span></button>`;
@@ -752,6 +754,19 @@ const ptsBal = () => PTS ? S.pts.bal : 0;
 const ptsAdd = (d, text) => { S.pts.bal += d; S.pts.log.unshift({at:Date.now(), text, d}); S.pts.log = S.pts.log.slice(0,50); store.set('pts', S.pts); };
 const ptsWord = n => { const a=Math.abs(n)%100, b=a%10; return (a>10&&a<20)?'очков':b===1?'очко':(b>=2&&b<=4)?'очка':'очков'; };
 const ptsN = n => `${fmt(n)} ${ptsWord(n)}`;
+// коэффициент X3D в Telegram-версии (решено 24.10): от ×3,0 до ×0,3 по номеру покупателя; 70% — за номер, 30% — за результат буста
+// очки за буст = max(0,3; коэффициент × (0,7 + 0,3 × результат)) × потрачено; начисляются, когда результат 100% (в рабочей версии — и через 24 ч или когда Тропа завершится)
+const coefOf = n => 0.3 + 2.7*Math.exp(-(n-1)/30);
+const coefStr = c => '×' + (Math.round(c*100)/100).toFixed(2).replace('.',',');
+const boostRes = x => 0.5*Math.min(1, x.viewed/36) + 0.5*Math.min(1, x.fwd/6);
+const boostReward = x => Math.round(Math.max(0.3, x.coef*(0.7 + 0.3*boostRes(x))) * x.pts);
+const boostMax = x => Math.round(Math.max(0.3, x.coef) * x.pts), boostMin = x => Math.round(0.3 * x.pts);
+function boostBar(x, compact){ const r = Math.round(boostRes(x)*100);
+  return `<div style="display:flex;flex-direction:column;gap:6px">
+    <div class="top caption" style="display:flex;justify-content:space-between"><span class="c-sec">Результат буста</span><span class="strong">${r}%</span></div>
+    <div class="prog"><i style="width:${r}%"></i></div>
+    ${compact?'':`<div class="caption c-mut">посмотрели ${x.viewed} из 36 · раздали дальше ${x.fwd} из 6</div>`}
+    <div class="caption ${x.paid?'c-suc':'c-sec'}">${x.paid?`Начислено +${ptsN(x.paid)}`:`Начислится до ${ptsN(boostMax(x))} · минимум ${fmt(boostMin(x))} · сейчас ${fmt(boostReward(x))}`}</div></div>`; }
 const ptsLack = need => `Не хватает очков: у вас ${ptsN(ptsBal())}. За каждую раздачу Тропы — +${PTS_SHARE}.`;
 // награда автору: % от покупки, который зритель оставляет автору; передаётся при выводе или когда Тропа завершится
 // порядок (решено 23.10): сначала комиссия сервиса 6% (в ней и реферальный 1%), награда автору — % от остатка
@@ -774,7 +789,7 @@ const dayWord = n => (n%10===1&&n%100!==11)?'день':(n%10>=2&&n%10<=4&&(n%100
 function lotHTML(l){ const d = daysHeld(l), left = daysLeft(l), ok = canOut(l), out = lotOut(l);
   const pct = Math.min(100, Math.round(100*d/LOCK_DAYS));
   return `<div class="lot"><div class="top"><span class="strong">+${fmt(l.demos)} DEMOS</span><span class="badge ${ok?'suc':'mut'}">${ok?'можно вывести':`через ${left} ${dayWord(left)}`}</span></div>
-    <div class="caption c-mut">${esc(l.title)} · ${cur(l.ton)}</div>
+    <div class="caption c-mut">${esc(l.title)} · ${cur(l.ton)}${l.sig?` · <button class="c-acc" data-a="link" data-v="${SOL_EXPLORER(l.sig)}">транзакция ↗</button>`:''}</div>
     <div class="top caption" style="margin-top:6px"><span class="c-sec">Лежит ${d} ${dayWord(d)}${ok?'':` из ${LOCK_DAYS}`}</span><span>на кошелёк <b>${fmt(out)}</b></span></div>
     <div class="prog" style="height:4px"><i style="width:${pct}%"></i></div>
     <div class="caption c-mut">${ok?`Можно вывести · комиссия ${FEE}%`:`Вывод через ${left} ${dayWord(left)} · комиссия ${FEE}%`}</div>
@@ -786,7 +801,7 @@ function walletHTML(){ if (PTS) return pointsHTML();
       <div class="caption c-sec" style="margin-top:2px">${readyLots().length?`Вывести сейчас: ${fmt(netOut())} DEMOS после комиссии ${FEE}%${tipsTotal()?` и награды авторам (${fmt(tipsTotal())})`:''}`:'Пока нечего выводить: каждую покупку можно вывести через 14 дней'}</div>
       <button class="btn primary" style="margin-top:10px" data-a="go" data-to="withdraw" ${readyLots().length?'':'disabled'}>Вывести на кошелёк</button></div>
     ${S.lots.length?`<div class="strong" style="margin-top:6px">Покупки на счёте</div><div class="caption c-mut" style="margin-top:-6px">Каждую покупку можно вывести через 14 дней после покупки. Комиссия — 6%.</div>${S.lots.map(lotHTML).join('')}`:''}
-    <div class="box" style="display:flex;justify-content:space-between;align-items:center"><span class="caption">${w.ton?(WEB?'Solana':'TON')+'-кошелёк '+w.ton:(WEB?'Solana':'TON')+'-кошелёк не подключён'}</span><button class="caption c-acc" data-a="ton">${w.ton?'Отключить':'Подключить'}</button></div>
+    <div class="box" style="display:flex;justify-content:space-between;align-items:center"><span class="caption">${WEB?(w.ton?`Phantom · ${w.ton}<br><span class="c-mut">тестовая сеть Solana (Devnet)</span>`:'Кошелёк Solana не подключён'):(w.ton?'TON-кошелёк '+w.ton:'TON-кошелёк не подключён')}</span><button class="caption c-acc" data-a="ton">${w.ton?'Отключить':'Подключить'}</button></div>
     <div class="strong" style="margin-top:6px">Мои X3D</div>
     ${S.myX3d.map(x=>`<div class="kv"><div><div class="strong">${esc(x.title)}</div><div class="caption c-mut">${curText(x.info)}</div></div><div style="text-align:right"><span class="badge ${x.st==='На счёте'?'acc':'mut'}">${x.st}</span><div class="caption c-sec">${x.rew}</div></div></div>`).join('')}
     <div class="strong" style="margin-top:6px">Вы как автор</div>
@@ -854,7 +869,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди',PTS?'«Раздать» — голос бесплатно. X3D — голос, на который человек тратит очки, расширяя охват до 36.':'«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':(ANDROID_APP?'Android':'веб')} · версия 0.40 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':(ANDROID_APP?'Android':'веб')} · версия 0.41 · тестовые данные</div></div></div>`;
 
 const rewardWeb = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Вся сумма превращается в DEMOS на вашем счёте. Это не обещание дохода.</div>
@@ -971,12 +986,56 @@ SHEETS.priceChanged = p => { const d = (p.rate/p.old-1)*100, sign = d>0?'+':'−
    <div class="kv"><span class="k">Сумма</span><span class="v">${cur(p.amount)}</span></div></div>
    <div class="fine c-mut">Обмен пройдёт по новой цене. Если не подтвердить, ничего не спишется.</div></div>
    <div class="foot"><button class="btn primary" data-a="price-confirm">Подтвердить и оплатить ${cur(p.amount)}</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
-SHEETS.paying = p => `<div class="grab"></div><div class="sc center" style="padding-top:10px"><div class="icon-circle" style="background:var(--bg-accent-soft);color:var(--t-accent)">⌛</div><div class="heading">Подтвердите в кошельке</div><div class="caption c-sec" style="margin:6px 0 16px">Откройте кошелёк и подтвердите оплату ${cur(p.amount)}. В тестовой версии оплата пройдёт сама.</div></div>`;
+
+// ---------- Solana, тестовая сеть Devnet (решено 24.10; полная версия: веб, затем Android и iOS) ----------
+// Оплата X3D и благодарностей — настоящий перевод SOL в тестовой сети через Phantom. Деньги ненастоящие.
+// Безопасность: транзакция строится на Devnet и отправляется только в Devnet (кошелёк лишь подписывает) — в основную сеть она не уйдёт.
+const SOL_RPC = 'https://api.devnet.solana.com';
+const SOL_TREASURY = '8pwxFAcuGLd6bxzFRazo5hVkqmSX4XBZG6xZkQy9nXoX'; // тестовый адрес платформы (только Devnet)
+const SOL_EXPLORER = sig => `https://explorer.solana.com/tx/${sig}?cluster=devnet`;
+const SOLW = { pk: WEB ? store.get('solPk', null) : null };
+const shortPk = pk => pk ? pk.slice(0,4) + '…' + pk.slice(-4) : '';
+if (WEB && SOLW.pk) S.wallet.ton = shortPk(SOLW.pk);
+if (WEB) S.lots = S.lots.concat(store.get('solLots', [])); // настоящие (тестовые) покупки сохраняются на устройстве
+const phantom = () => { try{ const p = (window.phantom && window.phantom.solana) || window.solana; return p && p.isPhantom ? p : null; }catch(e){ return null; } };
+let web3p = null;
+function loadWeb3(){ if (window.solanaWeb3) return Promise.resolve(window.solanaWeb3); if (web3p) return web3p;
+  web3p = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js';
+    sc.onload = () => window.solanaWeb3 ? res(window.solanaWeb3) : rej(new Error('web3')); sc.onerror = () => { web3p = null; rej(new Error('web3')); }; document.head.appendChild(sc); });
+  return web3p; }
+const phantomLink = () => 'https://phantom.app/ul/browse/' + encodeURIComponent(location.href) + '?ref=' + encodeURIComponent(location.origin);
+async function solConnect(){ const p = phantom(); if (!p){ openSheet('phantom'); return null; }
+  try{ const r = await p.connect(); SOLW.pk = r.publicKey.toString(); store.set('solPk', SOLW.pk); S.wallet.ton = shortPk(SOLW.pk); return SOLW.pk; }
+  catch(e){ toast('Подключение отменено'); return null; } }
+function solDisconnect(){ try{ const p = phantom(); p && p.disconnect && p.disconnect(); }catch(e){} SOLW.pk = null; store.set('solPk', null); S.wallet.ton = null; }
+async function solPay(amountSol){ const p = phantom(); if (!p || !SOLW.pk) throw new Error('nowallet');
+  const w3 = await loadWeb3(); const conn = new w3.Connection(SOL_RPC, 'confirmed'); const from = new w3.PublicKey(SOLW.pk);
+  const lamports = Math.round(amountSol * 1e9);
+  const bal = await conn.getBalance(from); if (bal < lamports + 10000) { const e = new Error('funds'); e.bal = bal/1e9; throw e; }
+  const bh = await conn.getLatestBlockhash('confirmed');
+  const tx = new w3.Transaction({feePayer: from, recentBlockhash: bh.blockhash}).add(w3.SystemProgram.transfer({fromPubkey: from, toPubkey: new w3.PublicKey(SOL_TREASURY), lamports}));
+  const signed = await p.signTransaction(tx);
+  if (S.sheet && S.sheet.name==='paying'){ S.sheet.params.step = 'confirm'; renderSheet(); }
+  const sig = await conn.sendRawTransaction(signed.serialize());
+  await conn.confirmTransaction({signature: sig, blockhash: bh.blockhash, lastValidBlockHeight: bh.lastValidBlockHeight}, 'confirmed');
+  return sig; }
+const solErrText = e => { const m = String(e && (e.message || e)); return m==='funds' ? `На кошельке недостаточно тестовых SOL (сейчас ${numRu(e.bal||0)} SOL). Пополните кошелёк в тестовой сети Devnet.`
+  : /reject|cancel|denied|4001/i.test(m) ? 'Оплата отменена в кошельке. Деньги не списаны.' : m==='web3' ? 'Не удалось загрузить модуль Solana. Проверьте интернет и попробуйте ещё раз.'
+  : 'Платёж не прошёл. Проверьте, что в Phantom включена тестовая сеть (Devnet), и попробуйте ещё раз. Деньги не списаны.'; };
+SHEETS.phantom = () => `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
+   <div class="heading">Подключите кошелёк Phantom</div>
+   <div class="caption c-sec">Оплата X3D и благодарностей — через кошелёк Solana. Сейчас тестовая сеть (Devnet): деньги ненастоящие. В Phantom включите: Настройки → Настройки разработчика → Режим тестовой сети → Devnet.</div>
+   <div class="caption c-mut">На телефоне откройте DEMOS внутри Phantom — кнопка ниже. На компьютере установите расширение Phantom и обновите страницу.</div></div>
+   <div class="foot"><button class="btn primary" data-a="link" data-v="${phantomLink()}">Открыть DEMOS в Phantom</button><button class="btn ghost" data-a="link" data-v="https://phantom.app/download">Установить Phantom</button></div>`;
+SHEETS.payFail = p => `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-warning-soft);color:var(--t-warning)">!</div><div class="heading">Оплата не прошла</div><div class="caption c-sec">${esc(p.text)}</div></div>
+   <div class="foot"><button class="btn primary" data-a="close">Понятно</button></div>`;
+SHEETS.paying = p => `<div class="grab"></div><div class="sc center" style="padding-top:10px"><div class="icon-circle" style="background:var(--bg-accent-soft);color:var(--t-accent)">⌛</div><div class="heading">${p.step==='confirm'?'Ждём подтверждения сети':'Подтвердите в Phantom'}</div><div class="caption c-sec" style="margin:6px 0 16px">${p.step==='confirm'?'Платёж отправлен, сеть Solana подтверждает его — обычно несколько секунд.':`Подтвердите оплату ${cur(p.amount)} в кошельке.`} Тестовая сеть Solana (Devnet) — деньги ненастоящие.</div></div>`;
 const boostedWeb = p => { const t = byId(p.id), x = t.my.x3d;
   return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">✓</div><div class="heading">Вы поддержали Тропу</div>
    <div class="caption c-sec">Тропу увидят ещё 36 человек рядом с вами и по тегам. Вы подписаны на Тропу — пришлём её дополнения.</div>
    <div style="text-align:left"><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">На ваш счёт</span><span class="v">+${fmt(x.demos)} DEMOS</span></div><div class="kv"><span class="k">Награда автору</span><span class="v">${x.tip?`${x.tip}% · ${fmt(tipOf(x.demos, x.tip))} DEMOS`:'не выбрана'}</span></div></div>
-   <div class="caption c-mut">Награду автору можно изменить в кошельке в любой момент, пока она не передана: передаётся при выводе или когда Тропа завершится. В тестовой версии оплата, цена и DEMOS условные.</div></div>
+   ${p.sig?`<button class="caption c-acc" data-a="link" data-v="${SOL_EXPLORER(p.sig)}">Транзакция в Solana Explorer (Devnet) ↗</button>`:''}
+   <div class="caption c-mut">Награду автору можно изменить в кошельке в любой момент, пока она не передана: передаётся при выводе или когда Тропа завершится. Сейчас тестовая сеть Solana (Devnet): деньги ненастоящие, цена и DEMOS условные.</div></div>
    <div class="foot"><button class="btn primary" data-a="close">Готово</button></div>`; };
 SHEETS.mt = p => { const t = byId(p.id); return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
    <div class="heading">Money Trust</div><div class="body c-sec">${PTS?'Показывает, насколько люди готовы тратить очки на охват этой Тропы.':'Показывает, насколько люди готовы платить за охват этой Тропы.'}</div>
@@ -1017,13 +1076,13 @@ const thankWeb = p => { const t = byId(p.id), v = thankTon(p), ok = v>=1;
    <div class="foot">${resBox()}<button class="btn primary" id="thank-pay" data-a="thank-pay" data-id="${t.id}" ${ok&&(S.residentOk||S.residentDone)?'':'disabled'}>${ok?`Оплатить ${cur(v)}`:'Выберите сумму'}</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
 
 // ---------- Telegram-версия на очках (24.10): окна X3D и благодарности, счёт очков ----------
-const ptsFine = 'Очки — только внутри Telegram-версии DEMOS: их нельзя купить, вывести или обменять на деньги. Дают при входе и за раздачи.';
+const ptsFine = 'Очки — только внутри Telegram-версии DEMOS: их нельзя купить, вывести или обменять на деньги. Дают при входе, за раздачи и за результат буста.';
 const x3dPts = p => { const t = byId(p.id); const a = p.amount || 10, cost = Math.round(a*CURK), ok = ptsBal() >= cost;
   return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
    <div style="display:flex;justify-content:space-between;align-items:center"><div class="heading">Буст Тропы</div>${strengthHTML(t.strength,t.trend)}</div>
    <div class="caption c-sec">Тропу увидят ещё 36 человек рядом с вами и по тегам</div>
    <div class="nft-row">${NFT_TIERS.map(tr=>nftCard(tr, tr.ton===a)).join('')}</div>
-   <div><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">Спишется</span><span class="v">${ptsN(cost)}</span></div><div class="kv"><span class="k">У вас</span><span class="v ${ok?'':'c-warn'}">${ptsN(ptsBal())}</span></div></div>
+   <div><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">Спишется</span><span class="v">${ptsN(cost)}</span></div><div class="kv"><div><div class="k">Ваш номер · коэффициент</div><div class="fine c-mut">от ×3,0 у первых до ×0,3</div></div><span class="v">№${t.x3d+1} · ${coefStr(coefOf(t.x3d+1))}</span></div><div class="kv"><div><div class="k">Вернётся очков</div><div class="fine c-mut">по результату буста</div></div><span class="v">${fmt(Math.round(0.3*cost))}–${fmt(Math.round(Math.max(0.3,coefOf(t.x3d+1))*cost))}</span></div><div class="kv"><span class="k">У вас</span><span class="v ${ok?'':'c-warn'}">${ptsN(ptsBal())}</span></div></div>
    <div class="tipbox"><div class="top"><span class="strong">Награда автору</span><span class="caption c-mut">необязательно</span></div>
    <div class="caption c-sec">Сколько очков из этого буста отдать @${esc(t.author)}. Автор получит их сразу.</div>
    ${tipChooser(cost, p.tip, p.tipCustom)}</div>
@@ -1034,7 +1093,9 @@ const x3dPts = p => { const t = byId(p.id); const a = p.amount || 10, cost = Mat
 const boostedPts = p => { const t = byId(p.id), x = t.my.x3d, tipPts = Math.round(x.pts*(x.tip||0)/100);
   return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">✓</div><div class="heading">Вы поддержали Тропу</div>
    <div class="caption c-sec">Тропу увидят ещё 36 человек рядом с вами и по тегам. Вы подписаны на Тропу — пришлём её дополнения.</div>
-   <div style="text-align:left"><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">Потрачено</span><span class="v">${ptsN(x.pts)}</span></div><div class="kv"><span class="k">Награда автору</span><span class="v">${x.tip?`${x.tip}% · ${ptsN(tipPts)}`:'не выбрана'}</span></div><div class="kv"><span class="k">Осталось у вас</span><span class="v">${ptsN(ptsBal())}</span></div></div></div>
+   <div style="text-align:left"><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">Потрачено</span><span class="v">${ptsN(x.pts)}</span></div><div class="kv"><span class="k">Ваш номер · коэффициент</span><span class="v">№${x.n} · ${coefStr(x.coef)}</span></div><div class="kv"><span class="k">Награда автору</span><span class="v">${x.tip?`${x.tip}% · ${ptsN(tipPts)}`:'не выбрана'}</span></div><div class="kv"><span class="k">Осталось у вас</span><span class="v">${ptsN(ptsBal())}</span></div></div>
+   <div class="box" style="text-align:left" data-boost="${t.id}" data-compact="0">${boostBar(x)}</div>
+   <div class="caption c-mut">Шкала наполняется, пока Тропу смотрят и раздают дальше. Очки начислятся, когда результат дойдёт до 100%. Следить можно на Тропе и в профиле → «Очки».</div></div>
    <div class="foot"><button class="btn primary" data-a="close">Готово</button></div>`; };
 const thankPts = p => { const t = byId(p.id), v = thankTon(p), pts = Math.round(v*CURK), ok = v>=1, enough = ptsBal() >= pts;
   return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
@@ -1060,16 +1121,18 @@ const thanksPts = () => `<div class="screen">${topbar('Благодарност�
   <div class="caption c-mut center">Ещё 33 благодарности — в рабочей версии</div></div></div>`;
 const rewardPts = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. В Telegram-версии DEMOS буст и благодарности — на очках.</div>
-  ${[['1. Очки',`${ptsN(PTS_START)} при входе и +${PTS_SHARE} за каждую бесплатную раздачу Тропы.`],['2. Буст',`${ptsN(10)}, ${ptsN(100)} или ${ptsN(1000)}. Очки списываются, Тропа получает +36 человек.`],['3. Охват','Одинаковый при любой сумме: +36 человек. Сумма влияет только на Money Trust Тропы.'],['4. Награда автору','Часть очков буста можно отдать автору — он получит их сразу.'],['5. Благодарность','Очки автору отдельно от буста, с сообщением до 500 знаков. За одну Тропу — один раз.'],['6. Только очки','Очки нельзя купить, вывести или обменять на деньги.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="caption c-sec">${b[1]}</div></div>`).join('')}</div></div>`;
+  ${[['1. Очки',`${ptsN(PTS_START)} при входе и +${PTS_SHARE} за каждую бесплатную раздачу Тропы.`],['2. Буст',`${ptsN(10)}, ${ptsN(100)} или ${ptsN(1000)}. Очки списываются, Тропа получает +36 человек. Вы автоматически подписываетесь на Тропу.`],['Коэффициент','Чем раньше вы поддержали Тропу, тем выше коэффициент: от ×3,0 у первого до ×0,3. 70% очков за буст — за номер, 30% — за результат буста (сколько из 36 посмотрели и сколько раздали дальше). Минимум — 0,3 от потраченного. Очки начисляются, когда шкала результата заполнится.'],['3. Охват','Одинаковый при любой сумме: +36 человек. Сумма влияет только на Money Trust Тропы.'],['4. Награда автору','Часть очков буста можно отдать автору — он получит их сразу.'],['5. Благодарность','Очки автору отдельно от буста, с сообщением до 500 знаков. За одну Тропу — один раз.'],['6. Только очки','Очки нельзя купить, вывести или обменять на деньги.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="caption c-sec">${b[1]}</div></div>`).join('')}</div></div>`;
 function pointsHTML(){
   const log = S.pts.log.slice(0,8);
   return `<div class="pad" style="display:flex;flex-direction:column;gap:12px;padding-bottom:24px">
     <div class="box"><div class="caption c-sec">Очки</div><div style="display:flex;align-items:baseline;gap:6px"><span class="title">${fmt(ptsBal())}</span><span class="c-sec">${ptsWord(ptsBal())}</span></div>
-      <div class="caption c-sec" style="margin-top:2px">${ptsN(PTS_START)} при входе и +${PTS_SHARE} за каждую раздачу. Тратятся на X3D и благодарности. Купить, вывести или обменять на деньги нельзя.</div></div>
+      <div class="caption c-sec" style="margin-top:2px">${ptsN(PTS_START)} при входе, +${PTS_SHARE} за каждую раздачу и очки за результат буста (коэффициент ×0,3–×3,0). Тратятся на X3D и благодарности. Купить, вывести или обменять на деньги нельзя.</div></div>
     <div class="strong" style="margin-top:6px">История</div>
     <div>${log.map(e=>`<div class="kv"><span>${esc(e.text)}</span><span class="strong ${e.d>0?'c-suc':''}">${e.d>0?'+':'−'}${fmt(Math.abs(e.d))}</span></div>`).join('')}</div>
     <div class="strong" style="margin-top:6px">Мои X3D</div>
-    ${S.myX3d.map(x=>`<div class="kv"><div><div class="strong">${esc(x.title)}</div><div class="caption c-mut">${curText(x.info)}</div></div><span class="badge acc">Буст</span></div>`).join('')}
+    ${S.myX3d.map(x=>{ const b = x.trail ? byId(x.trail).my.x3d : null;
+      if (b && b.coef) return `<div class="box" style="display:flex;flex-direction:column;gap:8px"><div style="display:flex;justify-content:space-between;gap:8px"><div style="min-width:0"><div class="strong">${esc(x.title)}</div><div class="caption c-mut">${ptsN(b.pts)} · №${b.n} · ${coefStr(b.coef)}</div></div><span class="badge ${b.paid?'suc':'acc'}">${b.paid?'Завершён':'Идёт'}</span></div><div data-boost="${x.trail}" data-compact="1">${boostBar(b, true)}</div></div>`;
+      return `<div class="kv"><div><div class="strong">${esc(x.title)}</div><div class="caption c-mut">${curText(x.info)}</div></div><span class="badge mut">Завершён</span></div>`; }).join('')}
     <div class="strong" style="margin-top:6px">Вы как автор</div>
     <button class="kv" style="width:100%;text-align:left" data-a="go" data-to="thanks"><div><div>Благодарности</div><div class="caption c-mut">37 человек · с сообщениями</div></div><span class="c-acc">Открыть ›</span></button>
     <div class="box" style="margin-top:6px"><div class="strong">Пригласите друзей</div><div class="caption c-sec" style="margin:4px 0 8px">Отправьте ссылку — друг откроет DEMOS в Telegram.</div>
@@ -1088,6 +1151,7 @@ SHEETS.person = p => { const a = PEOPLE[p.nick] || AUTHORS[p.nick] || {city:'',a
    <div class="foot"><button class="btn ghost" data-a="close">Закрыть</button></div>`; };
 const thankedWeb = p => { const t = byId(p.id); return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">♥</div><div class="heading">Спасибо, что поблагодарили</div><div class="caption c-sec">@${t.author} получит ${fmt(p.v)} DEMOS${p.ton?` (${cur(p.ton)})`:''} за эту Тропу.</div>${p.text?`<div class="box caption" style="text-align:left"><span class="c-mut">Ваше сообщение</span><br>${esc(p.text)}</div>`:''}
    <div class="box" style="text-align:left"><div class="kv"><span class="k">Поблагодарили за эту Тропу</span><span class="v">38 человек</span></div><div class="kv"><span class="k">Всего благодарностей</span><span class="v c-suc">12 896 DEMOS</span></div></div>
+   ${p.sig?`<button class="caption c-acc" data-a="link" data-v="${SOL_EXPLORER(p.sig)}">Транзакция в Solana Explorer (Devnet) ↗</button>`:''}
    <div class="caption c-mut">Поблагодарить за одну Тропу можно один раз — кнопки больше не появятся.</div></div><div class="foot"><button class="btn primary" data-a="close">Готово</button></div>`; };
 SHEETS.menu = p => { const t = byId(p.id);
   if (t.own) return `<div class="grab"></div><div class="sc"><button class="kv" style="width:100%" data-a="addition" data-id="${t.id}"><span>Дополнить Тропу</span><span>›</span></button><div class="caption c-mut" style="padding:10px 0">Опубликованную Тропу нельзя удалить или изменить. Она исчезает сама, когда после последней бесплатной раздачи прошло 24 часа.</div></div><div class="foot"><button class="btn ghost" data-a="close">Закрыть</button></div>`;
@@ -1346,28 +1410,43 @@ A['price-confirm'] = () => { const p = S.sheet.params; S.rate = p.rate; S.rateAt
 A['thank-pay'] = () => { const p = S.sheet.params, v = thankTon(p); if (v<1) return; if (PTS) return thankPtsDo(p.id, v, p.text||''); S.residentDone = true; const shown = S.rate, fresh = freshQuote();
   if (Math.abs(fresh/shown-1)*100 > PRICE_TOLERANCE){ haptic('medium'); return openSheet('priceChanged', {kind:'thank', id:p.id, amount:v, text:p.text||'', old:shown, rate:fresh}); }
   doThank(p.id, v, p.text||'', shown); };
-function doThank(id, ton, text, rate){ openSheet('paying', {amount:ton});
-  setTimeout(()=>{ const t = byId(id), demos = Math.round(ton*rate); t.my.thanked = true; S.sentThanks.unshift({to:t.author, trail:id, ton, demos, text});
-    haptic('heavy'); openSheet('thanked', {id, v:demos, ton, text}); }, 1400); }
+async function doThank(id, ton, text, rate){
+  if (WEB && !SOLW.pk){ if (!(await solConnect())) return; }
+  openSheet('paying', {amount:ton}); let sig = null;
+  if (WEB){ try{ sig = await solPay(ton*CURK); }catch(e){ return openSheet('payFail', {text: solErrText(e)}); } }
+  else await new Promise(r=>setTimeout(r,1400));
+  const t = byId(id), demos = Math.round(ton*rate); t.my.thanked = true; S.sentThanks.unshift({to:t.author, trail:id, ton, demos, text, sig});
+  haptic('heavy'); openSheet('thanked', {id, v:demos, ton, text, sig}); }
 // очки (Telegram-версия): списание сразу, без кошелька и цены
 function payPts(id, a, tip){ const t = byId(id), cost = Math.round(a*CURK); if (ptsBal() < cost) return;
   ptsAdd(-cost, 'X3D · ' + t.frags[0].text.slice(0,24) + '…');
-  t.my.x3d = {amount:a, pts:cost, demos:0, viewed:0, fwd:0, at:Date.now(), tip};
-  if (!t.my.shared){ t.shares++; t.my.shared = true; } t.x3d++; t.my.subscribed = true;
-  S.myX3d.unshift({title:t.frags[0].text.slice(0,34)+'…', st:'Буст', info:ptsN(cost), rew:''});
-  haptic('heavy'); openSheet('boosted', {id}); refreshCard(id); }
+  const n = t.x3d + 1;
+  t.my.x3d = {amount:a, pts:cost, demos:0, viewed:0, fwd:0, at:Date.now(), tip, n, coef:coefOf(n), paid:0};
+  if (!t.my.shared){ t.shares++; t.my.shared = true; } t.x3d++; t.my.subscribed = true; // автоматическая подписка на Тропу
+  S.myX3d.unshift({title:t.frags[0].text.slice(0,34)+'…', st:'Буст', info:ptsN(cost), rew:'', trail:id});
+  haptic('heavy'); openSheet('boosted', {id}); refreshCard(id); simulateBoost(id); }
 function thankPtsDo(id, v, text){ const t = byId(id), pts = Math.round(v*CURK); if (ptsBal() < pts) return;
   ptsAdd(-pts, 'Благодарность @' + t.author); t.my.thanked = true; S.sentThanks.unshift({to:t.author, trail:id, ton:v, demos:0, pts, text});
   haptic('heavy'); openSheet('thanked', {id, v:pts, text}); }
-function doPay(id, a, tip, rate){
-  openSheet('paying', {amount:a});
-  setTimeout(()=>{ const t = byId(id); const demos = a*rate;
+async function doPay(id, a, tip, rate){
+  if (WEB && !SOLW.pk){ if (!(await solConnect())) return; }
+  openSheet('paying', {amount:a}); let sig = null;
+  if (WEB){ try{ sig = await solPay(a*CURK); }catch(e){ return openSheet('payFail', {text: solErrText(e)}); } }
+  else await new Promise(r=>setTimeout(r,1400));
+  { const t = byId(id); const demos = a*rate;
     t.my.x3d = {amount:a, demos, viewed:0, fwd:0, at:Date.now(), tip};
     if (!t.my.shared){ t.shares++; t.my.shared = true; } t.x3d++; t.my.subscribed = true;
-    S.lots.push({at:Date.now(), demos, trail:id, title:t.frags[0].text.slice(0,34)+'…', ton:a, author:t.author, tip}); // каждая покупка — отдельно, для комиссии при выводе
+    const lot = {at:Date.now(), demos, trail:id, title:t.frags[0].text.slice(0,34)+'…', ton:a, author:t.author, tip, sig};
+    S.lots.push(lot); // каждая покупка — отдельно, для комиссии при выводе
+    if (sig){ const sv = store.get('solLots', []); sv.push(lot); store.set('solLots', sv); }
     S.myX3d.unshift({title:t.frags[0].text.slice(0,34)+'…', st:'На счёте', info:cur(a), rew:`${fmt(demos)} DEMOS`});
-    haptic('heavy'); openSheet('boosted', {id}); refreshCard(id); }, 1400); }
+    haptic('heavy'); openSheet('boosted', {id, sig}); refreshCard(id); } }
 function simulateBoost(id){ const t = byId(id); const iv = setInterval(()=>{ const x = t.my.x3d; if(!x){clearInterval(iv);return;}
+  if (PTS){ x.viewed = Math.min(36, x.viewed + 3 + Math.floor(Math.random()*4)); if (Math.random()>.45) x.fwd = Math.min(6, x.fwd+1);
+    if (x.viewed>=36 && x.fwd>=6 && !x.paid){ x.paid = boostReward(x); ptsAdd(x.paid, 'Буст · ' + t.frags[0].text.slice(0,24) + '…'); clearInterval(iv); if (!S.sheet) toast(`Буст завершён: +${ptsN(x.paid)}`); }
+    document.querySelectorAll(`[data-boost="${id}"]`).forEach(el => { el.innerHTML = boostBar(x, el.dataset.compact==='1'); });
+    if (x.paid && !S.sheet && S.screen==='main' && S.tab==='profile') render(false);
+    return; }
   x.viewed = Math.min(36, x.viewed + 3 + Math.floor(Math.random()*4)); if (Math.random()>.55) x.fwd = Math.min(6, x.fwd+1);
   if (!S.sheet) refreshCard(id); if (x.viewed>=36 && x.fwd>=6) clearInterval(iv); }, 4000); }
 A.mt = el => openSheet('mt', {id:el.dataset.id});
@@ -1434,8 +1513,9 @@ A.toast = el => toast(el.dataset.m);
 A.reset = () => { try{localStorage.removeItem('demos_onboarded'); localStorage.removeItem('demos_obStep');}catch(e){} S.onboarded=false; S.stack=[]; go(WEB&&!inviteCode()?'invite':'splash',{},false); setTimeout(()=>{ if (S.screen==='splash') go(WEB?'invited':'ob1',{},false); },1800); };
 A.saved = () => { back(); toast('Профиль сохранён'); };
 A.copy = () => { try{ const pr = navigator.clipboard && navigator.clipboard.writeText(refLink()); pr && pr.catch && pr.catch(()=>{}); }catch(e){} toast('Ссылка скопирована'); };
-A.ton = () => { S.wallet.ton = S.wallet.ton ? null : (WEB ? '7xKX…9fQa' : 'UQB…3fA2'); render(false); toast(S.wallet.ton?'Кошелёк подключён (тест)':'Кошелёк отключён'); };
-A['withdraw-do'] = () => { if (!S.wallet.ton){ S.wallet.ton = WEB ? '7xKX…9fQa' : 'UQB…3fA2'; render(false); return toast('Кошелёк подключён (тест)'); }
+A.ton = async () => { if (WEB){ if (S.wallet.ton){ solDisconnect(); render(false); return toast('Кошелёк отключён'); } const pk = await solConnect(); if (pk){ render(false); toast('Phantom подключён · ' + shortPk(pk)); } return; }
+  S.wallet.ton = S.wallet.ton ? null : 'UQB…3fA2'; render(false); toast(S.wallet.ton?'Кошелёк подключён (тест)':'Кошелёк отключён'); };
+A['withdraw-do'] = async () => { if (!S.wallet.ton){ if (WEB){ const pk = await solConnect(); if (pk){ render(false); toast('Phantom подключён · ' + shortPk(pk)); } return; } S.wallet.ton = 'UQB…3fA2'; render(false); return toast('Кошелёк подключён (тест)'); }
   const out = netOut(), gone = readyLots().map(l=>l.title); S.lots = S.lots.filter(l=>!canOut(l));
   S.myX3d.forEach(x=>{ if (x.st==='На счёте' && gone.includes(x.title)) x.st='Выведено'; }); back(); toast(`Отправлено ${fmt(out)} DEMOS на кошелёк (тест)`); };
 
