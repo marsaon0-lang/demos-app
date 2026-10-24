@@ -101,8 +101,8 @@ input,textarea{font:inherit;color:inherit}
 .overlay .txt{font-size:15px;line-height:1.4;text-shadow:0 1px 2px rgba(0,0,0,.4);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .overlay .txt.full{-webkit-line-clamp:unset;max-height:40vh;overflow:auto}
 .overlay .more-link{color:rgba(255,255,255,.7);font-weight:600}
-.rail{position:absolute;right:12px;bottom:16px;display:flex;flex-direction:column;gap:16px;align-items:center;z-index:4}
-.rail button,.rail div{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;font-weight:600}
+.rail{position:absolute;right:18px;bottom:16px;width:68px;display:flex;flex-direction:column;gap:16px;align-items:center;z-index:4} /* фикс. ширина: значки не прыгают при «Звук / Звук выкл.» */
+.rail button,.rail div{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;font-weight:600;width:100%;white-space:nowrap;text-align:center}
 .rail svg{width:26px;height:26px}
 .strength{display:inline-flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;font-weight:600}
 .strength .sig{display:flex;align-items:flex-end;gap:2px;height:14px}

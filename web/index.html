@@ -117,8 +117,8 @@ input,textarea{font:inherit;color:inherit}
 .overlay .txt{font-size:15px;line-height:1.4;text-shadow:0 1px 2px rgba(0,0,0,.4);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .overlay .txt.full{-webkit-line-clamp:unset;max-height:40vh;overflow:auto}
 .overlay .more-link{color:rgba(255,255,255,.7);font-weight:600}
-.rail{position:absolute;right:12px;bottom:16px;display:flex;flex-direction:column;gap:16px;align-items:center;z-index:4}
-.rail button,.rail div{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;font-weight:600}
+.rail{position:absolute;right:18px;bottom:16px;width:68px;display:flex;flex-direction:column;gap:16px;align-items:center;z-index:4} /* фикс. ширина: значки не прыгают при «Звук / Звук выкл.» */
+.rail button,.rail div{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;font-weight:600;width:100%;white-space:nowrap;text-align:center}
 .rail svg{width:26px;height:26px}
 .strength{display:inline-flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;font-weight:600}
 .strength .sig{display:flex;align-items:flex-end;gap:2px;height:14px}
@@ -576,6 +576,7 @@ function actionsHTML(t){
       <button class="btn primary" style="width:auto;padding:0 18px;height:44px" data-a="addition" data-id="${t.id}">Дополнить Тропу</button></div>${mtRow(t)}</div>`;
   }
   const m = t.my;
+  if (m.x3d && PTS && m.x3d.coef) return `<div class="actions"><div class="part" data-boostcard="${t.id}">${ptsBlock(t)}</div></div>`;
   if (m.x3d){
     const x = m.x3d;
     return `<div class="actions"><div class="part">
@@ -766,7 +767,17 @@ function boostBar(x, compact){ const r = Math.round(boostRes(x)*100);
     <div class="top caption" style="display:flex;justify-content:space-between"><span class="c-sec">Результат буста</span><span class="strong">${r}%</span></div>
     <div class="prog"><i style="width:${r}%"></i></div>
     ${compact?'':`<div class="caption c-mut">посмотрели ${x.viewed} из 36 · раздали дальше ${x.fwd} из 6</div>`}
-    <div class="caption ${x.paid?'c-suc':'c-sec'}">${x.paid?`Начислено +${ptsN(x.paid)}`:`Начислится до ${ptsN(boostMax(x))} · минимум ${fmt(boostMin(x))} · сейчас ${fmt(boostReward(x))}`}</div></div>`; }
+    <div class="caption ${x.paid?'c-suc':'c-sec'}">${x.paid?`Начислено +${ptsN(x.paid)}${x.why==='time'?' · прошло 24 часа':x.why==='finished'?' · Тропа завершилась':''}`:`Начислится до ${ptsN(boostMax(x))} · минимум ${fmt(boostMin(x))} · сейчас ${fmt(boostReward(x))}`}</div></div>`; }
+const BOOST_HOURS = 24; // расчёт: результат 100%, через 24 ч после покупки или когда Тропа завершилась — что раньше
+const boostLeft = x => Math.max(0, x.at + BOOST_HOURS*3600000 - Date.now());
+const hhmm = ms => { const m = Math.ceil(ms/60000), h = Math.floor(m/60); return h ? (m%60 ? `${h} ч ${m%60} мин` : `${h} ч`) : `${m} мин`; };
+// блок под Тропой после X3D (Telegram): сколько очков даст буст — как «+N DEMOS» в полной версии
+function ptsBlock(t){ const x = t.my.x3d, now = x.paid || boostReward(x);
+  return `<div class="top"><span class="strong">Вы поддержали Тропу</span>${strengthHTML(t.strength,t.trend)}</div>
+    <div class="top"><span class="heading ${x.paid?'c-suc':''}">+${ptsN(now)}</span><button class="mt-mini" data-a="mt" data-id="${t.id}"><span class="c-sec">${ptsN(x.pts)} ·</span>${mtTri(t.mtOf)}<b>${t.mtOf} из 100</b></button></div>
+    <div class="caption c-sec">№${x.n} · коэффициент ${coefStr(x.coef)} · вы подписаны на Тропу</div>
+    ${boostBar(x, true)}
+    ${x.paid?'':`<div class="caption c-mut">Расчёт через ${hhmm(boostLeft(x))} или раньше — когда результат дойдёт до 100%</div>`}`; }
 const ptsLack = need => `Не хватает очков: у вас ${ptsN(ptsBal())}. За каждую раздачу Тропы — +${PTS_SHARE}.`;
 // награда автору: % от покупки, который зритель оставляет автору; передаётся при выводе или когда Тропа завершится
 // порядок (решено 23.10): сначала комиссия сервиса 6% (в ней и реферальный 1%), награда автору — % от остатка
@@ -869,7 +880,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди',PTS?'«Раздать» — голос бесплатно. X3D — голос, на который человек тратит очки, расширяя охват до 36.':'«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':(ANDROID_APP?'Android':'веб')} · версия 0.41 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':(ANDROID_APP?'Android':'веб')} · версия 0.42 · тестовые данные</div></div></div>`;
 
 const rewardWeb = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Вся сумма превращается в DEMOS на вашем счёте. Это не обещание дохода.</div>
@@ -1418,13 +1429,15 @@ async function doThank(id, ton, text, rate){
   const t = byId(id), demos = Math.round(ton*rate); t.my.thanked = true; S.sentThanks.unshift({to:t.author, trail:id, ton, demos, text, sig});
   haptic('heavy'); openSheet('thanked', {id, v:demos, ton, text, sig}); }
 // очки (Telegram-версия): списание сразу, без кошелька и цены
+function saveBoosts(){ if (!PTS) return; const o = {}; S.trails.forEach(t => { if (t.my.x3d && t.my.x3d.coef) o[t.id] = t.my.x3d; }); store.set('ptsBoosts', o); }
+function settleBoost(t, why){ const x = t.my.x3d; if (!x || x.paid) return; x.paid = boostReward(x); x.why = why; ptsAdd(x.paid, 'Буст · ' + t.frags[0].text.slice(0,24) + '…'); saveBoosts(); }
 function payPts(id, a, tip){ const t = byId(id), cost = Math.round(a*CURK); if (ptsBal() < cost) return;
   ptsAdd(-cost, 'X3D · ' + t.frags[0].text.slice(0,24) + '…');
   const n = t.x3d + 1;
   t.my.x3d = {amount:a, pts:cost, demos:0, viewed:0, fwd:0, at:Date.now(), tip, n, coef:coefOf(n), paid:0};
   if (!t.my.shared){ t.shares++; t.my.shared = true; } t.x3d++; t.my.subscribed = true; // автоматическая подписка на Тропу
   S.myX3d.unshift({title:t.frags[0].text.slice(0,34)+'…', st:'Буст', info:ptsN(cost), rew:'', trail:id});
-  haptic('heavy'); openSheet('boosted', {id}); refreshCard(id); simulateBoost(id); }
+  saveBoosts(); haptic('heavy'); openSheet('boosted', {id}); refreshCard(id); simulateBoost(id); }
 function thankPtsDo(id, v, text){ const t = byId(id), pts = Math.round(v*CURK); if (ptsBal() < pts) return;
   ptsAdd(-pts, 'Благодарность @' + t.author); t.my.thanked = true; S.sentThanks.unshift({to:t.author, trail:id, ton:v, demos:0, pts, text});
   haptic('heavy'); openSheet('thanked', {id, v:pts, text}); }
@@ -1442,13 +1455,19 @@ async function doPay(id, a, tip, rate){
     S.myX3d.unshift({title:t.frags[0].text.slice(0,34)+'…', st:'На счёте', info:cur(a), rew:`${fmt(demos)} DEMOS`});
     haptic('heavy'); openSheet('boosted', {id, sig}); refreshCard(id); } }
 function simulateBoost(id){ const t = byId(id); const iv = setInterval(()=>{ const x = t.my.x3d; if(!x){clearInterval(iv);return;}
-  if (PTS){ x.viewed = Math.min(36, x.viewed + 3 + Math.floor(Math.random()*4)); if (Math.random()>.45) x.fwd = Math.min(6, x.fwd+1);
-    if (x.viewed>=36 && x.fwd>=6 && !x.paid){ x.paid = boostReward(x); ptsAdd(x.paid, 'Буст · ' + t.frags[0].text.slice(0,24) + '…'); clearInterval(iv); if (!S.sheet) toast(`Буст завершён: +${ptsN(x.paid)}`); }
+  if (PTS){ if (x.paid){ clearInterval(iv); return; }
+    x.viewed = Math.min(36, x.viewed + 3 + Math.floor(Math.random()*4)); if (Math.random()>.45) x.fwd = Math.min(6, x.fwd+1);
+    const why = (x.viewed>=36 && x.fwd>=6) ? 'full' : !boostLeft(x) ? 'time' : t.status==='finished' ? 'finished' : '';
+    if (why){ settleBoost(t, why); clearInterval(iv); if (!S.sheet) toast(`Буст завершён: +${ptsN(x.paid)}`); } else saveBoosts();
     document.querySelectorAll(`[data-boost="${id}"]`).forEach(el => { el.innerHTML = boostBar(x, el.dataset.compact==='1'); });
+    document.querySelectorAll(`[data-boostcard="${id}"]`).forEach(el => { el.innerHTML = ptsBlock(t); });
     if (x.paid && !S.sheet && S.screen==='main' && S.tab==='profile') render(false);
     return; }
   x.viewed = Math.min(36, x.viewed + 3 + Math.floor(Math.random()*4)); if (Math.random()>.55) x.fwd = Math.min(6, x.fwd+1);
   if (!S.sheet) refreshCard(id); if (x.viewed>=36 && x.fwd>=6) clearInterval(iv); }, 4000); }
+if (PTS){ const saved = store.get('ptsBoosts', {}); Object.keys(saved).forEach(id => { const t = byId(id); if (!t) return; t.my.x3d = saved[id]; t.my.shared = true; t.my.subscribed = true;
+    if (!S.myX3d.some(m=>m.trail===id)) S.myX3d.unshift({title:t.frags[0].text.slice(0,34)+'…', st:'Буст', info:ptsN(t.my.x3d.pts), rew:'', trail:id});
+    if (!t.my.x3d.paid){ if (!boostLeft(t.my.x3d)) settleBoost(t, 'time'); else simulateBoost(id); } }); }
 A.mt = el => openSheet('mt', {id:el.dataset.id});
 A.comments = el => openSheet('comments', {id:el.dataset.id});
 A.reply = el => { S.replyTo = {id:+el.dataset.v, who:el.dataset.who}; renderSheet(); setTimeout(()=>{const i=document.getElementById('cmt'); i&&i.focus();},50); };
