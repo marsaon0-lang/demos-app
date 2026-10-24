@@ -879,7 +879,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди',PTS?'«Раздать» — голос бесплатно. X3D — голос, на который человек тратит очки, расширяя охват до 36.':'«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':(ANDROID_APP?'Android':'веб')} · версия 0.43 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':(ANDROID_APP?'Android':'веб')} · версия 0.44 · тестовые данные</div></div></div>`;
 
 const rewardWeb = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Вся сумма превращается в DEMOS на вашем счёте. Это не обещание дохода.</div>
@@ -1014,24 +1014,100 @@ function loadWeb3(){ if (window.solanaWeb3) return Promise.resolve(window.solana
     sc.onload = () => window.solanaWeb3 ? res(window.solanaWeb3) : rej(new Error('web3')); sc.onerror = () => { web3p = null; rej(new Error('web3')); }; document.head.appendChild(sc); });
   return web3p; }
 const phantomLink = () => 'https://phantom.app/ul/browse/' + encodeURIComponent(location.href) + '?ref=' + encodeURIComponent(location.origin);
-async function solConnect(){ const p = phantom(); if (!p){ openSheet('phantom'); return null; }
+async function solConnect(){ const p = phantom(); if (!p){ const m = walletMode(); if (m === 'mwa') return mwaConnect(); if (m === 'dl'){ store.set('phPending', null); loadNacl().catch(()=>{}); openSheet('dlConnect'); return null; } openSheet('phantom'); return null; }
   try{ const r = await p.connect(); SOLW.pk = r.publicKey.toString(); store.set('solPk', SOLW.pk); S.wallet.ton = shortPk(SOLW.pk); return SOLW.pk; }
   catch(e){ toast('Подключение отменено'); return null; } }
-function solDisconnect(){ try{ const p = phantom(); p && p.disconnect && p.disconnect(); }catch(e){} SOLW.pk = null; store.set('solPk', null); S.wallet.ton = null; }
-async function solPay(amountSol){ const p = phantom(); if (!p || !SOLW.pk) throw new Error('nowallet');
-  const w3 = await loadWeb3(); const conn = new w3.Connection(SOL_RPC, 'confirmed'); const from = new w3.PublicKey(SOLW.pk);
+function solDisconnect(){ try{ const p = phantom(); p && p.disconnect && p.disconnect(); }catch(e){} try{ NATIVE() && NATIVE().mwaDisconnect && NATIVE().mwaDisconnect(); }catch(e){} SOLW.pk = null; store.set('solPk', null); DL.set(null); S.wallet.ton = null; }
+// перевод SOL (Devnet) на адрес платформы: транзакцию собираем здесь, кошелёк только подписывает, отправляем сами — только в Devnet
+async function buildTx(amountSol){ const w3 = await loadWeb3(); const conn = new w3.Connection(SOL_RPC, 'confirmed'); const from = new w3.PublicKey(SOLW.pk);
   const lamports = Math.round(amountSol * 1e9);
   const bal = await conn.getBalance(from); if (bal < lamports + 10000) { const e = new Error('funds'); e.bal = bal/1e9; throw e; }
   const bh = await conn.getLatestBlockhash('confirmed');
   const tx = new w3.Transaction({feePayer: from, recentBlockhash: bh.blockhash}).add(w3.SystemProgram.transfer({fromPubkey: from, toPubkey: new w3.PublicKey(SOL_TREASURY), lamports}));
-  const signed = await p.signTransaction(tx);
-  if (S.sheet && S.sheet.name==='paying'){ S.sheet.params.step = 'confirm'; renderSheet(); }
-  const sig = await conn.sendRawTransaction(signed.serialize());
-  await conn.confirmTransaction({signature: sig, blockhash: bh.blockhash, lastValidBlockHeight: bh.lastValidBlockHeight}, 'confirmed');
-  return sig; }
+  return {w3, conn, tx, bh}; }
+async function sendSigned(conn, raw, bh){ if (S.sheet && S.sheet.name==='paying'){ S.sheet.params.step = 'confirm'; renderSheet(); }
+  const sig = await conn.sendRawTransaction(raw);
+  await conn.confirmTransaction({signature: sig, blockhash: bh.blockhash, lastValidBlockHeight: bh.lastValidBlockHeight}, 'confirmed'); return sig; }
+async function solPay(amountSol, mode){ if (!SOLW.pk) throw new Error('nowallet');
+  const {conn, tx, bh} = await buildTx(amountSol);
+  if (mode === 'mwa'){ const unsigned = tx.serialize({requireAllSignatures:false, verifySignatures:false}); const signed = await nativeCall('mwaSign', b64enc(unsigned)); return sendSigned(conn, b64dec(signed), bh); }
+  const p = phantom(); if (!p) throw new Error('nowallet'); const signed = await p.signTransaction(tx); return sendSigned(conn, signed.serialize(), bh); }
+
+// ---- base58 / base64 ----
+const B58A = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+function b58enc(b){ b = b instanceof Uint8Array ? b : new Uint8Array(b); let z = 0; while (z < b.length && b[z] === 0) z++; const d = [];
+  for (let i = z; i < b.length; i++){ let c = b[i]; for (let j = 0; j < d.length; j++){ c += d[j] << 8; d[j] = c % 58; c = (c / 58) | 0; } while (c){ d.push(c % 58); c = (c / 58) | 0; } }
+  return '1'.repeat(z) + d.reverse().map(x => B58A[x]).join(''); }
+function b58dec(str){ let z = 0; while (z < str.length && str[z] === '1') z++; const b = [];
+  for (let i = z; i < str.length; i++){ let c = B58A.indexOf(str[i]); if (c < 0) throw new Error('b58'); for (let j = 0; j < b.length; j++){ c += b[j] * 58; b[j] = c & 255; c >>= 8; } while (c){ b.push(c & 255); c >>= 8; } }
+  return new Uint8Array([...new Array(z).fill(0), ...b.reverse()]); }
+const b64enc = u8 => btoa(String.fromCharCode(...u8)), b64dec = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+
+// ---- переход в Phantom и обратно (телефон, обычный браузер; решено основателем 24.10) ----
+// Протокол Phantom deeplinks: connect → signTransaction; ответ шифруется (x25519 + NaCl box), ключи сессии хранятся на устройстве.
+const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const PH_BASE = 'https://phantom.app/ul/v1/';
+let naclp = null;
+function loadNacl(){ if (window.nacl) return Promise.resolve(window.nacl); if (naclp) return naclp;
+  naclp = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/tweetnacl/1.0.3/nacl-fast.min.js';
+    sc.onload = () => window.nacl ? res(window.nacl) : rej(new Error('web3')); sc.onerror = () => { naclp = null; rej(new Error('web3')); }; document.head.appendChild(sc); });
+  return naclp; }
+const DL = { get: () => store.get('phDL', null), set: v => store.set('phDL', v) };
+function dlRedirect(action){ const ref = inviteCode();
+  if (ANDROID_APP) return 'demos://phantom?ph=' + action; // в Android-приложение — по своей схеме
+  const u = new URL(location.origin + location.pathname); if (ref) u.searchParams.set('ref', ref); u.searchParams.set('ph', action); return u.toString(); }
+function dlConnectUrl(){ const nacl = window.nacl; const kp = nacl.box.keyPair(); DL.set({sk: b58enc(kp.secretKey), pk: b58enc(kp.publicKey)});
+  return PH_BASE + 'connect?' + new URLSearchParams({app_url: location.origin, dapp_encryption_public_key: b58enc(kp.publicKey), redirect_link: dlRedirect('connect'), cluster: 'devnet'}); }
+async function dlPrepare(job){ const nacl = await loadNacl(); const d = DL.get(); if (!d || !d.session) throw new Error('nosession');
+  const {tx, bh} = await buildTx(job.amountSol); const ser = tx.serialize({requireAllSignatures:false, verifySignatures:false});
+  const shared = nacl.box.before(b58dec(d.phPk), b58dec(d.sk)); const nonce = nacl.randomBytes(24);
+  const enc = nacl.box.after(new TextEncoder().encode(JSON.stringify({transaction: b58enc(ser), session: d.session})), nonce, shared);
+  store.set('phPending', {...job, bh: bh.blockhash, lvh: bh.lastValidBlockHeight});
+  return PH_BASE + 'signTransaction?' + new URLSearchParams({dapp_encryption_public_key: d.pk, nonce: b58enc(nonce), redirect_link: dlRedirect('sign'), payload: b58enc(enc)}); }
+async function dlReturn(){ const q = new URLSearchParams(location.search); const ph = q.get('ph'); if (!ph) return;
+  const clean = () => { const u = new URL(location.href); ['ph','phantom_encryption_public_key','nonce','data','errorCode','errorMessage'].forEach(k => u.searchParams.delete(k)); history.replaceState(null, '', u.pathname + u.search); };
+  const job = store.get('phPending', null);
+  if (q.get('errorCode')){ clean(); store.set('phPending', null); return openSheet('payFail', {text: q.get('errorCode')==='4001' ? 'Отменено в Phantom. Деньги не списаны.' : 'Phantom вернул ошибку: ' + (q.get('errorMessage') || q.get('errorCode')) + '. Деньги не списаны.'}); }
+  try{ const nacl = await loadNacl(); const d = DL.get(); if (!d) throw new Error('nosession');
+    if (ph === 'connect') d.phPk = q.get('phantom_encryption_public_key');
+    const shared = nacl.box.before(b58dec(d.phPk), b58dec(d.sk));
+    const plain = nacl.box.open.after(b58dec(q.get('data')), b58dec(q.get('nonce')), shared); if (!plain) throw new Error('decrypt');
+    const data = JSON.parse(new TextDecoder().decode(plain)); clean();
+    if (ph === 'connect'){ d.session = data.session; d.wallet = data.public_key; DL.set(d); SOLW.pk = data.public_key; store.set('solPk', SOLW.pk); S.wallet.ton = shortPk(SOLW.pk); render(false);
+      toast('Phantom подключён · ' + shortPk(SOLW.pk)); if (job) openDlPay(job); return; }
+    if (ph === 'sign' && job){ openSheet('paying', {amount: job.kind==='x3d' ? job.a : job.ton, step:'confirm'});
+      const w3 = await loadWeb3(); const conn = new w3.Connection(SOL_RPC, 'confirmed');
+      const sig = await sendSigned(conn, b58dec(data.transaction), {blockhash: job.bh, lastValidBlockHeight: job.lvh}); store.set('phPending', null); finishJob(job, sig); }
+  }catch(e){ clean(); openSheet('payFail', {text: solErrText(e)}); } }
+function openDlPay(job){ S.dlUrl = null; openSheet('dlPay', {job}); dlPrepare(job).then(u => { S.dlUrl = u; if (S.sheet && S.sheet.name==='dlPay') renderSheet(); }).catch(e => openSheet('payFail', {text: solErrText(e)})); }
+SHEETS.dlConnect = () => `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
+   <div class="heading">Подключите Phantom</div>
+   <div class="caption c-sec">Откроется приложение Phantom — подтвердите подключение, и вас вернёт в DEMOS. Сейчас тестовая сеть Solana (Devnet): деньги ненастоящие. В Phantom: Настройки → Настройки разработчика → Режим тестовой сети → Devnet.</div></div>
+   <div class="foot"><button class="btn primary" data-a="dl-connect">Подключить Phantom</button><button class="btn ghost" data-a="link" data-v="https://phantom.app/download">Установить Phantom</button></div>`;
+SHEETS.dlPay = p => `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-accent-soft);color:var(--t-accent)">P</div>
+   <div class="heading">Оплата в Phantom</div><div class="caption c-sec">${S.dlUrl ? `Откроется Phantom — подтвердите оплату ${cur(p.job.kind==='x3d'?p.job.a:p.job.ton)}, и вас вернёт в DEMOS.` : 'Готовим платёж…'} Тестовая сеть Solana (Devnet) — деньги ненастоящие.</div></div>
+   <div class="foot"><button class="btn primary" data-a="dl-go" ${S.dlUrl?'':'disabled'}>Оплатить в Phantom</button><button class="btn ghost" data-a="close">Отмена</button></div>`;
+
+// ---- Android-приложение: Solana Mobile Wallet Adapter через мост с приложением ----
+const NATIVE = () => (ANDROID_APP && window.DEMOSNative) ? window.DEMOSNative : null;
+const nativeCbs = {}; let nativeSeq = 0;
+window.__nativeCb = (id, ok, value) => { const cb = nativeCbs[id]; if (!cb) return; delete nativeCbs[id]; ok ? cb.res(value) : cb.rej(new Error(value || 'native')); };
+function nativeCall(method, arg){ return new Promise((res, rej) => { const n = NATIVE(); if (!n || !n[method]) return rej(new Error('nowallet')); const id = 'c' + (++nativeSeq); nativeCbs[id] = {res, rej}; try{ arg === undefined ? n[method](id) : n[method](id, arg); }catch(e){ delete nativeCbs[id]; rej(e); } }); }
+async function mwaConnect(){ try{ const pk = await nativeCall('mwaConnect'); SOLW.pk = pk; store.set('solPk', pk); S.wallet.ton = shortPk(pk); return pk; }
+  catch(e){ toast(/nowallet|NoWallet/i.test(e.message) ? 'Не найден кошелёк Solana на телефоне' : 'Подключение отменено'); return null; } }
+// какой способ: расширение/браузер Phantom → MWA в Android-приложении → переход в Phantom на телефоне → нет кошелька (компьютер без расширения)
+const walletMode = () => phantom() ? 'inject' : NATIVE() ? 'mwa' : IS_MOBILE ? 'dl' : 'none';
+async function walletPay(job){ const mode = walletMode();
+  if (mode === 'none') return openSheet('phantom');
+  if (mode === 'dl'){ store.set('phPending', job); const d = DL.get(); if (!d || !d.session){ loadNacl().catch(()=>{}); return openSheet('dlConnect'); } return openDlPay(job); }
+  if (!SOLW.pk){ const pk = mode === 'mwa' ? await mwaConnect() : await solConnect(); if (!pk) return; }
+  openSheet('paying', {amount: job.kind==='x3d' ? job.a : job.ton});
+  try{ const sig = await solPay(job.amountSol, mode); finishJob(job, sig); }catch(e){ openSheet('payFail', {text: solErrText(e)}); } }
+function finishJob(job, sig){ if (job.kind === 'x3d') finishPay(job.id, job.a, job.tip, job.rate, sig); else finishThank(job.id, job.ton, job.text, job.rate, sig); }
 const solErrText = e => { const m = String(e && (e.message || e)); return m==='funds' ? `На кошельке недостаточно тестовых SOL (сейчас ${numRu(e.bal||0)} SOL). Пополните кошелёк в тестовой сети Devnet.`
   : /reject|cancel|denied|4001/i.test(m) ? 'Оплата отменена в кошельке. Деньги не списаны.' : m==='web3' ? 'Не удалось загрузить модуль Solana. Проверьте интернет и попробуйте ещё раз.'
-  : 'Платёж не прошёл. Проверьте, что в Phantom включена тестовая сеть (Devnet), и попробуйте ещё раз. Деньги не списаны.'; };
+  : m==='nosession' ? 'Подключение к Phantom устарело. Подключите кошелёк ещё раз. Деньги не списаны.' : m==='nowallet' ? 'Кошелёк не подключён.'
+  : 'Платёж не прошёл. Проверьте, что в кошельке включена тестовая сеть (Devnet), и попробуйте ещё раз. Деньги не списаны.'; };
 SHEETS.phantom = () => `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
    <div class="heading">Подключите кошелёк Phantom</div>
    <div class="caption c-sec">Оплата X3D и благодарностей — через кошелёк Solana. Сейчас тестовая сеть (Devnet): деньги ненастоящие. В Phantom включите: Настройки → Настройки разработчика → Режим тестовой сети → Devnet.</div>
@@ -1039,7 +1115,7 @@ SHEETS.phantom = () => `<div class="grab"></div><div class="sc" style="display:f
    <div class="foot"><button class="btn primary" data-a="link" data-v="${phantomLink()}">Открыть DEMOS в Phantom</button><button class="btn ghost" data-a="link" data-v="https://phantom.app/download">Установить Phantom</button></div>`;
 SHEETS.payFail = p => `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-warning-soft);color:var(--t-warning)">!</div><div class="heading">Оплата не прошла</div><div class="caption c-sec">${esc(p.text)}</div></div>
    <div class="foot"><button class="btn primary" data-a="close">Понятно</button></div>`;
-SHEETS.paying = p => `<div class="grab"></div><div class="sc center" style="padding-top:10px"><div class="icon-circle" style="background:var(--bg-accent-soft);color:var(--t-accent)">⌛</div><div class="heading">${p.step==='confirm'?'Ждём подтверждения сети':'Подтвердите в Phantom'}</div><div class="caption c-sec" style="margin:6px 0 16px">${p.step==='confirm'?'Платёж отправлен, сеть Solana подтверждает его — обычно несколько секунд.':`Подтвердите оплату ${cur(p.amount)} в кошельке.`} Тестовая сеть Solana (Devnet) — деньги ненастоящие.</div></div>`;
+SHEETS.paying = p => `<div class="grab"></div><div class="sc center" style="padding-top:10px"><div class="icon-circle" style="background:var(--bg-accent-soft);color:var(--t-accent)">⌛</div><div class="heading">${p.step==='confirm'?'Ждём подтверждения сети':'Подтвердите в кошельке'}</div><div class="caption c-sec" style="margin:6px 0 16px">${p.step==='confirm'?'Платёж отправлен, сеть Solana подтверждает его — обычно несколько секунд.':`Подтвердите оплату ${cur(p.amount)} в кошельке.`} Тестовая сеть Solana (Devnet) — деньги ненастоящие.</div></div>`;
 const boostedWeb = p => { const t = byId(p.id), x = t.my.x3d;
   return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">✓</div><div class="heading">Вы поддержали Тропу</div>
    <div class="caption c-sec">Тропу увидят ещё 36 человек рядом с вами и по тегам. Вы подписаны на Тропу — пришлём её дополнения.</div>
@@ -1429,12 +1505,11 @@ A['thank-pay'] = () => { const p = S.sheet.params, v = thankTon(p); if (v<1) ret
   if (Math.abs(fresh/shown-1)*100 > PRICE_TOLERANCE){ haptic('medium'); return openSheet('priceChanged', {kind:'thank', id:p.id, amount:v, text:p.text||'', old:shown, rate:fresh}); }
   doThank(p.id, v, p.text||'', shown); };
 async function doThank(id, ton, text, rate){
-  if (WEB && !SOLW.pk){ if (!(await solConnect())) return; }
-  openSheet('paying', {amount:ton}); let sig = null;
-  if (WEB){ try{ sig = await solPay(ton*CURK); }catch(e){ return openSheet('payFail', {text: solErrText(e)}); } }
-  else await new Promise(r=>setTimeout(r,1400));
+  if (WEB) return walletPay({kind:'thank', id, ton, text, rate, amountSol: ton*CURK});
+  openSheet('paying', {amount:ton}); await new Promise(r=>setTimeout(r,1400)); finishThank(id, ton, text, rate, null); }
+function finishThank(id, ton, text, rate, sig){
   const t = byId(id), demos = Math.round(ton*rate); t.my.thanked = true; S.sentThanks.unshift({to:t.author, trail:id, ton, demos, text, sig});
-  haptic('heavy'); openSheet('thanked', {id, v:demos, ton, text, sig}); }
+  haptic('heavy'); openSheet('thanked', {id, v:demos, ton, text, sig}); refreshCard(id); }
 // очки (Telegram-версия): списание сразу, без кошелька и цены
 function saveBoosts(){ if (!PTS) return; const o = {}; S.trails.forEach(t => { if (t.my.x3d && t.my.x3d.before != null) o[t.id] = {x:t.my.x3d, vol:trailVol(t), x3d:t.x3d}; }); store.set('ptsBoosts', o); }
 function settleBoost(t){ const x = t.my.x3d; if (!x || x.paid) return; x.coefFinal = coefAt(xShare(t,x)); x.paid = Math.round(x.coefFinal*x.pts); x.tipPaid = Math.round(x.paid*(x.tip||0)/100);
@@ -1452,10 +1527,9 @@ function thankPtsDo(id, v, text){ const t = byId(id), pts = Math.round(v*CURK); 
   ptsAdd(-pts, 'Благодарность @' + t.author); t.my.thanked = true; S.sentThanks.unshift({to:t.author, trail:id, ton:v, demos:0, pts, text});
   haptic('heavy'); openSheet('thanked', {id, v:pts, text}); }
 async function doPay(id, a, tip, rate){
-  if (WEB && !SOLW.pk){ if (!(await solConnect())) return; }
-  openSheet('paying', {amount:a}); let sig = null;
-  if (WEB){ try{ sig = await solPay(a*CURK); }catch(e){ return openSheet('payFail', {text: solErrText(e)}); } }
-  else await new Promise(r=>setTimeout(r,1400));
+  if (WEB) return walletPay({kind:'x3d', id, a, tip, rate, amountSol: a*CURK});
+  openSheet('paying', {amount:a}); await new Promise(r=>setTimeout(r,1400)); finishPay(id, a, tip, rate, null); }
+function finishPay(id, a, tip, rate, sig){
   { const t = byId(id); const demos = a*rate;
     t.my.x3d = {amount:a, demos, viewed:0, fwd:0, at:Date.now(), tip};
     if (!t.my.shared){ t.shares++; t.my.shared = true; } t.x3d++; t.my.subscribed = true;
@@ -1479,6 +1553,8 @@ if (PTS){ const saved = store.get('ptsBoosts', {}); Object.keys(saved).forEach(i
     t.my.x3d = sv.x; t.vol = sv.vol; t.x3d = sv.x3d; t.my.shared = true; t.my.subscribed = true;
     if (!S.myX3d.some(m=>m.trail===id)) S.myX3d.unshift({title:t.frags[0].text.slice(0,34)+'…', st:'Буст', info:ptsN(t.my.x3d.pts), rew:'', trail:id});
     if (!t.my.x3d.paid){ if (!closeLeft(t.my.x3d)) settleBoost(t); else simulateBoost(id); } }); }
+A['dl-connect'] = () => { if (!window.nacl){ toast('Секунду…'); loadNacl().catch(()=>{}); return; } location.href = dlConnectUrl(); };
+A['dl-go'] = () => { if (S.dlUrl) location.href = S.dlUrl; };
 A.mt = el => openSheet('mt', {id:el.dataset.id});
 A.comments = el => openSheet('comments', {id:el.dataset.id});
 A.reply = el => { S.replyTo = {id:+el.dataset.v, who:el.dataset.who}; renderSheet(); setTimeout(()=>{const i=document.getElementById('cmt'); i&&i.focus();},50); };
@@ -1640,6 +1716,7 @@ if (WEB){ try{ const q = new URLSearchParams(location.search).get('ref'); if (q 
 const webStart = () => !inviteCode() ? 'invite' : 'splash';
 S.screen = S.onboarded ? 'main' : (WEB ? webStart() : 'splash');
 render(true);
+if (WEB) setTimeout(() => { dlReturn(); }, 0); // возврат из Phantom (?ph=connect|sign)
 if (!S.onboarded && S.screen==='splash') setTimeout(()=>{ if (S.screen==='splash') go(WEB ? 'invited' : 'ob1', {}, false); }, 1800);
 window.DEMOS = {S, reset(){ try{localStorage.removeItem('demos_onboarded');}catch(e){} location.reload(); }};
 })();
