@@ -52,11 +52,16 @@ class MwaBridge(private val activity: ComponentActivity, private val web: WebVie
     fun mwaSign(cb: String, txBase64: String) {
         val tx = Base64.decode(txBase64, Base64.NO_WRAP)
         activity.lifecycleScope.launch {
-            val r = adapter.transact(sender) { signTransactions(arrayOf(tx)) }
+            var signed: ByteArray? = null
+            val r = adapter.transact(sender) {
+                val res = signTransactions(arrayOf(tx))
+                signed = res.signedPayloads.firstOrNull()
+                res
+            }
             when (r) {
                 is TransactionResult.Success -> {
-                    val signed = r.successPayload?.signedPayloads?.firstOrNull()
-                    if (signed != null) reply(cb, true, Base64.encodeToString(signed, Base64.NO_WRAP)) else reply(cb, false, "cancel")
+                    val out = signed
+                    if (out != null) reply(cb, true, Base64.encodeToString(out, Base64.NO_WRAP)) else reply(cb, false, "cancel")
                 }
                 is TransactionResult.NoWalletFound -> reply(cb, false, "nowallet")
                 is TransactionResult.Failure -> reply(cb, false, r.e.message ?: "cancel")
