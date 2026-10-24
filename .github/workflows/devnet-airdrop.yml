@@ -1,0 +1,32 @@
+# Тестовые SOL (сеть Devnet, ненастоящие деньги) на адреса из tools/devnet-airdrop.txt.
+# Запускается, когда меняется этот файл. Успех/ошибка — по статусу запуска.
+name: Devnet airdrop
+
+on:
+  push:
+    branches: [main]
+    paths: ['tools/devnet-airdrop.txt', '.github/workflows/devnet-airdrop.yml']
+  workflow_dispatch:
+
+jobs:
+  airdrop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Request devnet SOL
+        run: |
+          RPC=https://api.devnet.solana.com
+          ok=0
+          while read -r addr; do
+            [ -z "$addr" ] && continue
+            echo "== $addr"
+            for i in 1 2 3 4 5 6; do
+              r=$(curl -s $RPC -H 'Content-Type: application/json' -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"requestAirdrop\",\"params\":[\"$addr\",1000000000]}")
+              echo "try $i: $r"
+              echo "$r" | grep -q '"result"' && { ok=1; break; }
+              sleep 20
+            done
+            sleep 25
+            curl -s $RPC -H 'Content-Type: application/json' -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getBalance\",\"params\":[\"$addr\"]}"; echo
+          done < tools/devnet-airdrop.txt
+          [ "$ok" = 1 ] || { echo "Airdrop отклонён (лимит Devnet)"; exit 1; }
