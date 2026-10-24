@@ -1,7 +1,7 @@
 package com.demos.app;
 
 import android.Manifest;
-import android.app.Activity;
+import androidx.activity.ComponentActivity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -34,7 +34,7 @@ import android.webkit.WebViewClient;
  * DEMOS для Android (тестовая сборка, 24.10).
  * Внутри — веб-версия DEMOS; обновляется вместе с сайтом, переустанавливать APK не нужно.
  */
-public class MainActivity extends Activity {
+public class MainActivity extends ComponentActivity {
 
     private static final String HOST = "marsaon0-lang.github.io";
     private static final String HOME = "https://" + HOST + "/demos-app/web/";
@@ -76,7 +76,8 @@ public class MainActivity extends Activity {
         s.setDatabaseEnabled(true);
         s.setGeolocationEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
-        s.setUserAgentString(s.getUserAgentString() + " DEMOSAndroid/0.40");
+        s.setUserAgentString(s.getUserAgentString() + " DEMOSAndroid/0.44");
+        web.addJavascriptInterface(new MwaBridge(this, web), "DEMOSNative"); // кошелёк Solana (Mobile Wallet Adapter)
 
         web.setWebViewClient(new WebViewClient() {
             @Override
