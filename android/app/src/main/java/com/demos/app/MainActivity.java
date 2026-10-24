@@ -76,7 +76,7 @@ public class MainActivity extends ComponentActivity {
         s.setDatabaseEnabled(true);
         s.setGeolocationEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
-        s.setUserAgentString(s.getUserAgentString() + " DEMOSAndroid/0.44");
+        s.setUserAgentString(s.getUserAgentString() + " DEMOSAndroid/0.47");
         web.addJavascriptInterface(new MwaBridge(this, web), "DEMOSNative"); // кошелёк Solana (Mobile Wallet Adapter)
 
         web.setWebViewClient(new WebViewClient() {
@@ -168,19 +168,29 @@ public class MainActivity extends ComponentActivity {
     }
 
     /** Заставка при запуске: логотип и «DEMOS», пока загружается первая страница. */
+    /** Заставка — как в Telegram-версии (25.10): треугольник, «DEMOS», «Биржа правды», внизу цитата. Картинки отрисованы из того же макета. */
     private View buildSplash() {
-        LinearLayout l = column();
-        l.addView(logo(96));
-        TextView name = text("DEMOS", 26, TEXT, true);
-        name.setLetterSpacing(0.08f);
-        name.setPadding(0, dp(18), 0, 0);
-        l.addView(name);
-        return l;
+        FrameLayout f = new FrameLayout(this);
+        f.setBackgroundColor(BG);
+        f.setClickable(true);
+        ImageView center = new ImageView(this);
+        center.setImageResource(R.drawable.splash_center);
+        FrameLayout.LayoutParams lc = new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER);
+        lc.bottomMargin = dp(80); // как в Telegram: блок чуть выше центра
+        f.addView(center, lc);
+        ImageView quote = new ImageView(this);
+        quote.setImageResource(R.drawable.splash_quote);
+        quote.setAdjustViewBounds(true);
+        FrameLayout.LayoutParams lq = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        lq.bottomMargin = dp(40);
+        lq.leftMargin = dp(16); lq.rightMargin = dp(16);
+        f.addView(quote, lq);
+        return f;
     }
 
     private void hideSplash() {
         if (splash.getVisibility() != View.VISIBLE) return;
-        long wait = Math.max(0, 700 - (System.currentTimeMillis() - startedAt)); // заставка видна хотя бы 0,7 с
+        long wait = Math.max(0, 1200 - (System.currentTimeMillis() - startedAt)); // заставка видна хотя бы 1,2 с
         splash.postDelayed(() -> splash.animate().alpha(0f).setDuration(250).withEndAction(() -> splash.setVisibility(View.GONE)).start(), wait);
     }
 
