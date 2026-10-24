@@ -31,7 +31,7 @@ const S = {
   residentOk: false, sentThanks: [], rate: 300, rateAt: Date.now(), firstTrail: true, createdToday: false, lastAddAt: 0,
   wallet: {ton:null},
   // счёт DEMOS: каждая покупка X3D — отдельная партия со своей датой (стейкинг считается по каждой партии)
-  lots: [{at:Date.now()-15.2*86400000, demos:3000, title:'Пропал пёс Рони', ton:10, author:'boris', tip:5},{at:Date.now()-4.3*86400000, demos:1500, title:'Прорвало трубу на Профсоюзной', ton:5, author:'dom43_profsoyuznaya', tip:0},{at:Date.now()-0.6*86400000, demos:300, title:'Перекрыли полосы на Пироговской', ton:1, author:'semyon_p', tip:10}],
+  lots: [{at:Date.now()-15.2*86400000, demos:3000, title:'Пропал пёс Рони', ton:10, author:'boris', tip:5, k:1.46},{at:Date.now()-4.3*86400000, demos:1500, title:'Прорвало трубу на Профсоюзной', ton:5, author:'dom43_profsoyuznaya', tip:0, k:0.88},{at:Date.now()-0.6*86400000, demos:300, title:'Перекрыли полосы на Пироговской', ton:1, author:'semyon_p', tip:10, k:0.74}], // демо: Тропы уже завершились, коэффициент известен
   myX3d: [{title:'Пропал пёс Рони', st:'На счёте', info:'10 TON', rew:'3 000 DEMOS'},{title:'Прорвало трубу на Профсоюзной', st:'На счёте', info:'5 TON', rew:'1 500 DEMOS'},{title:'Перекрыли полосы на Пироговской', st:'На счёте', info:'1 TON', rew:'300 DEMOS'}],
   draft: null, geo: store.get('geo', null) || {lat:55.7387, lon:37.5806, label:'Москва, улица Плющиха, 12', acc:0, src:'demo'}, me: null, mapPoint: null,
   topics: new Set(['Город','Животные','Помощь']), details: new Set(),
@@ -148,6 +148,7 @@ function actionsHTML(t){
   }
   const m = t.my;
   if (m.x3d && PTS && m.x3d.before != null) return `<div class="actions"><div class="part" data-boostcard="${t.id}">${ptsBlock(t)}</div></div>`;
+  if (m.x3d && !PTS && m.x3d.lot) return `<div class="actions"><div class="part" data-webcard="${t.id}">${webBlock(t)}</div></div>`;
   if (m.x3d){
     const x = m.x3d;
     return `<div class="actions"><div class="part">
@@ -315,8 +316,11 @@ function myTrailsHTML(){
 const LOCK_DAYS = 14, FEE = 6;
 const daysHeld = l => Math.floor((Date.now()-l.at)/86400000);
 const daysLeft = l => Math.max(0, LOCK_DAYS - daysHeld(l));
-const canOut = l => daysHeld(l) >= LOCK_DAYS;
-const balance = () => S.lots.reduce((a,l)=>a+l.demos,0);
+// полная версия, вариант A: DEMOS покупки = DEMOS при покупке × коэффициент Тропы; вывод — когда Тропа завершилась и прошло 14 дней
+const lotK = l => l.settled !== false ? (l.k || 1) : (() => { const t = byId(l.trail); return t ? kaCoef(trailVol(t), l.before, l.ton) : 1; })();
+const lotDemos = l => Math.round(l.demos * lotK(l));
+const canOut = l => l.settled !== false && daysHeld(l) >= LOCK_DAYS;
+const balance = () => S.lots.reduce((a,l)=>a+lotDemos(l),0);
 // очки Telegram-версии: стартовые и за раздачу — параметры (числа — предложение Claude 24.10, меняются в админке)
 const PTS_START = 1000, PTS_SHARE = 10;
 if (PTS){ S.pts = store.get('pts', null) || {bal:PTS_START, log:[{at:Date.now(), text:'Стартовые очки', d:PTS_START}]}; }
@@ -324,18 +328,21 @@ const ptsBal = () => PTS ? S.pts.bal : 0;
 const ptsAdd = (d, text) => { S.pts.bal += d; S.pts.log.unshift({at:Date.now(), text, d}); S.pts.log = S.pts.log.slice(0,50); store.set('pts', S.pts); };
 const ptsWord = n => { const a=Math.abs(n)%100, b=a%10; return (a>10&&a<20)?'очков':b===1?'очко':(b>=2&&b<=4)?'очка':'очков'; };
 const ptsN = n => `${fmt(n)} ${ptsWord(n)}`;
-// Коэффициент X3D в Telegram-версии (решено основателем 24.10; таблица «DEMOS Allocation Curve» из ТЗ.docx):
-// от ×3,0 до ×0,3 по позиции покупателя в общем объёме X3D Тропы (в очках). Позиция = доля объёма Тропы, набранного до конца вашей покупки.
-// Чем больше купят X3D после вас, тем меньше ваша доля и выше коэффициент. Плавно: доля до 10% → ×3,0 … 100% (после вас никто) → ×0,3.
-// Окончательно — когда Тропа завершится. От просмотров и раздач не зависит.
-const COEF_MAX = 3.0, COEF_MIN = 0.3;
-const coefAt = share => share <= 0.1 ? COEF_MAX : Math.max(COEF_MIN, COEF_MAX - (COEF_MAX-COEF_MIN)*(share-0.1)/0.9);
+// Коэффициент X3D — ВАРИАНТ A (решено основателем 25.10; одинаково в Telegram на очках и в полной версии на DEMOS).
+// Замкнутая Тропа, без резерва: всё, что выплачивается, — ровно общая сумма X3D Тропы. Прибыль первых = убыток последних.
+// Кривая по доле в объёме X3D Тропы: k(доля) = 0,7 + 1,3 × (1 − доля)^P, P = 10/3 (подобрано так, что средний k = 1).
+// Выплата покупки = объём × (F(доля после) − F(доля до)), F — первообразная k. Точно при любых суммах; один покупатель получает свою сумму.
+// Итог — при завершении Тропы; пока Тропа жива, показывается текущая оценка (растёт, когда после вас покупают).
+const KA_MIN = 0.7, KA_MAX = 2.0, KA_P = (KA_MAX-KA_MIN)/(1-KA_MIN) - 1;
+const kaF = s => KA_MIN*s - (KA_MAX-KA_MIN)*Math.pow(1-s, KA_P+1)/(KA_P+1);
+const kaPay = (vol, before, amt) => { if (!(amt > 0)) return 0; if (!(vol > 0)) return amt; const s0 = Math.min(1, before/vol), s1 = Math.min(1, (before+amt)/vol); return vol*(kaF(s1)-kaF(s0)); };
+const kaCoef = (vol, before, amt) => amt > 0 ? kaPay(vol, before, amt)/amt : 1;
+const COEF_MAX = KA_MAX, COEF_MIN = KA_MIN;
 const coefStr = c => '×' + (Math.round(c*100)/100).toFixed(2).replace('.',',');
-const trailVol = t => { if (t.vol == null) t.vol = Math.round((parseFloat(String(t.mt||'0').replace(/[^\d,]/g,'').replace(',','.'))||0)*CURK); return t.vol; };
-const mtText = t => PTS ? ptsN(trailVol(t)) : curText(t.mt);
-const xShare = (t,x) => { const v = trailVol(t); return v ? Math.min(1, (x.before + x.pts)/v) : 1; };
-const xCoef = (t,x) => x.paid ? x.coefFinal : coefAt(xShare(t,x));
-const xNow = (t,x) => x.paid ? x.paid : Math.round(xCoef(t,x)*x.pts);
+const trailVol = t => { if (t.vol == null) t.vol = Math.round((parseFloat(String(t.mt||'0').replace(/[^\d,]/g,'').replace(',','.'))||0)*(PTS?CURK:1)); return t.vol; }; // Telegram — очки; полная версия — единицы (1 = 0,01 SOL)
+const mtText = t => PTS ? ptsN(trailVol(t)) : cur(trailVol(t));
+const xCoef = (t,x) => x.paid ? x.coefFinal : kaCoef(trailVol(t), x.before, x.pts);
+const xNow = (t,x) => x.paid ? x.paid : Math.round(kaPay(trailVol(t), x.before, x.pts));
 const xMin = x => Math.round(COEF_MIN*x.pts), xMax = x => Math.round(COEF_MAX*x.pts);
 const xAfter = (t,x) => Math.max(0, trailVol(t) - x.before - x.pts);
 const xTip = (t,x) => Math.round(xNow(t,x)*(x.tip||0)/100);
@@ -344,29 +351,42 @@ function coefBar(t, x, compact){ const c = xCoef(t,x), pct = Math.round((c-COEF_
   return `<div style="display:flex;flex-direction:column;gap:6px">
     <div class="caption" style="display:flex;justify-content:space-between"><span class="c-sec">Коэффициент</span><span class="strong">${coefStr(c)}</span></div>
     <div class="prog"><i style="width:${Math.max(2,pct)}%"></i></div>
-    <div class="caption c-mut" style="display:flex;justify-content:space-between"><span>×0,3 · ${fmt(xMin(x))}</span><span>×3,0 · ${fmt(xMax(x))}</span></div>
-    ${compact?'':`<div class="caption c-sec">После вас купили X3D на ${ptsN(xAfter(t,x))} · ваша доля в объёме Тропы ${Math.round(xShare(t,x)*100)}%</div>`}
+    <div class="caption c-mut" style="display:flex;justify-content:space-between"><span>×0,7 · ${fmt(xMin(x))}</span><span>×2,0 · ${fmt(xMax(x))}</span></div>
+    ${compact?'':`<div class="caption c-sec">После вас купили X3D на ${ptsN(xAfter(t,x))}. Чем больше купят после вас, тем выше коэффициент</div>`}
     <div class="caption ${x.paid?'c-suc':'c-sec'}">${x.paid?`Начислено ${ptsN(x.paid - (x.tipPaid||0))}${x.tipPaid?` · автору ${ptsN(x.tipPaid)}`:''} · Тропа завершилась`:`Сейчас ${ptsN(xNow(t,x))} · растёт, когда после вас покупают X3D`}</div></div>`; }
+function kaBarHTML(k, base, now, compact){ const pct = Math.round((k-KA_MIN)/(KA_MAX-KA_MIN)*100);
+  return `<div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
+    <div class="caption" style="display:flex;justify-content:space-between"><span class="c-sec">Коэффициент</span><span class="strong">${coefStr(k)}</span></div>
+    <div class="prog"><i style="width:${Math.max(2,pct)}%"></i></div>
+    <div class="caption c-mut" style="display:flex;justify-content:space-between"><span>×0,7 · ${fmt(Math.round(base*KA_MIN))}</span><span>×2,0 · ${fmt(Math.round(base*KA_MAX))}</span></div>
+    ${compact?'':`<div class="caption c-sec">Сейчас ${fmt(now)} DEMOS · растёт, когда после вас покупают X3D</div>`}</div>`; }
 const hhmm = ms => { const m = Math.ceil(ms/60000), h = Math.floor(m/60); return h ? (m%60 ? `${h} ч ${m%60} мин` : `${h} ч`) : `${m} мин`; };
 const closeLeft = x => Math.max(0, x.closeAt - Date.now());
 // блок под Тропой после X3D (Telegram): сколько очков даёт буст сейчас — как «+N DEMOS» в полной версии
+function webBlock(t){ const l = t.my.x3d.lot, k = lotK(l), live = l.settled === false;
+  return `<div class="top"><span class="strong">Вы поддержали Тропу</span>${strengthHTML(t.strength,t.trend)}</div>
+    <div class="top"><span class="heading ${live?'':'c-suc'}">+${fmt(lotDemos(l))} DEMOS</span><button class="mt-mini" data-a="mt" data-id="${t.id}"><span class="c-sec">${cur(l.ton)} ·</span>${mtTri(t.mtOf)}<b>${t.mtOf} из 100</b></button></div>
+    <div class="caption c-sec">№${l.n||t.x3d} · после вас купили на ${cur(Math.max(0, trailVol(t)-l.before-l.ton))} · вы подписаны на Тропу</div>
+    ${kaBarHTML(k, l.demos, lotDemos(l), true)}
+    <div class="caption c-mut">${live?`Итог — когда Тропа завершится (в тестовой версии — через ${hhmm(Math.max(0,(l.closeAt||0)-Date.now()))})`:'Тропа завершилась · итог зафиксирован'}</div>`; }
 function ptsBlock(t){ const x = t.my.x3d;
   return `<div class="top"><span class="strong">Вы поддержали Тропу</span>${strengthHTML(t.strength,t.trend)}</div>
     <div class="top"><span class="heading ${x.paid?'c-suc':''}">+${ptsN(xNow(t,x))}</span><button class="mt-mini" data-a="mt" data-id="${t.id}"><span class="c-sec">${ptsN(x.pts)} ·</span>${mtTri(t.mtOf)}<b>${t.mtOf} из 100</b></button></div>
     <div class="caption c-sec">№${x.n} · после вас купили на ${ptsN(xAfter(t,x))} · вы подписаны на Тропу</div>
     ${coefBar(t, x, true)}
     ${x.paid?'':`<div class="caption c-mut">Итог — когда Тропа завершится (в тестовой версии — через ${hhmm(closeLeft(x))})</div>`}`; }
+const KA_TEXT = 'Всё, что выплачивается за буст, — это общая сумма X3D Тропы, без добавок: сколько первые получают сверх своего, столько недополучают последние. Коэффициент зависит от вашей доли в объёме X3D Тропы: в самом начале ×2,0; 10% — ×1,61; 20% — ×1,32; 30% — ×1,10; 40% — ×0,94; 50% — ×0,83; 60% — ×0,76; 70% и дальше — около ×0,7. Пример: 10 человек по 100 получат 180, 146, 120, 101, 88, 79, 74, 71, 70, 70 — ровно 1 000. Если вы один — получите своё обратно. Итог — когда Тропа завершится.';
 const ptsLack = need => `Не хватает очков: у вас ${ptsN(ptsBal())}. За каждую раздачу Тропы — +${PTS_SHARE}.`;
 // награда автору: % от покупки, который зритель оставляет автору; передаётся при выводе или когда Тропа завершится
 // порядок (решено 23.10): сначала комиссия сервиса 6% (в ней и реферальный 1%), награда автору — % от остатка
 const afterFee = demos => Math.round(demos*(1-FEE/100));
 const tipOf = (demos, tip) => Math.round(afterFee(demos)*(tip||0)/100);
-const lotTip = l => tipOf(l.demos, l.tip);
-const lotOut = l => afterFee(l.demos) - lotTip(l);
+const lotTip = l => tipOf(lotDemos(l), l.tip);
+const lotOut = l => afterFee(lotDemos(l)) - lotTip(l);
 const readyLots = () => S.lots.filter(canOut);
 const netOut = () => readyLots().reduce((a,l)=>a+lotOut(l),0);
 const tipsTotal = () => readyLots().reduce((a,l)=>a+lotTip(l),0);
-const readyBal = () => readyLots().reduce((a,l)=>a+l.demos,0);
+const readyBal = () => readyLots().reduce((a,l)=>a+lotDemos(l),0);
 const TIP_OPTS = [1,5,20];
 function tipChooser(base, sel, custom){
   return `<div class="amounts">${TIP_OPTS.map(v=>`<button class="amt tipb ${sel===v?'on':''}" data-a="tip-pick" data-v="${v}"><span>${v}%</span><small>${fmt(base*v/100)}</small></button>`).join('')}<button class="amt tipb ${sel==='custom'?'on':''}" data-a="tip-pick" data-v="custom"><span>Своя</span><small>${sel==='custom'&&+custom?fmt(base*custom/100):'%'}</small></button></div>
@@ -375,13 +395,15 @@ function tipChooser(base, sel, custom){
 }
 const tipValue = p => p.tip==='custom' ? Math.min(100, Math.max(0, +p.tipCustom||0)) : (p.tip||0);
 const dayWord = n => (n%10===1&&n%100!==11)?'день':(n%10>=2&&n%10<=4&&(n%100<12||n%100>14))?'дня':'дней';
-function lotHTML(l){ const d = daysHeld(l), left = daysLeft(l), ok = canOut(l), out = lotOut(l);
+function lotHTML(l){ const d = daysHeld(l), left = daysLeft(l), ok = canOut(l), out = lotOut(l), live = l.settled === false, k = lotK(l);
   const pct = Math.min(100, Math.round(100*d/LOCK_DAYS));
-  return `<div class="lot"><div class="top"><span class="strong">+${fmt(l.demos)} DEMOS</span><span class="badge ${ok?'suc':'mut'}">${ok?'можно вывести':`через ${left} ${dayWord(left)}`}</span></div>
+  return `<div class="lot"><div class="top"><span class="strong">+${fmt(lotDemos(l))} DEMOS</span><span class="badge ${ok?'suc':live?'acc':'mut'}">${ok?'можно вывести':live?'Тропа идёт':`через ${left} ${dayWord(left)}`}</span></div>
+    <div class="caption c-sec">куплено на ${fmt(l.demos)} DEMOS · ${live?'сейчас ':''}${coefStr(k)}${live?' · итог — когда Тропа завершится':' · Тропа завершилась'}</div>
+    ${live?`<div data-lotbar="${l.trail}">${kaBarHTML(k, l.demos, lotDemos(l), true)}</div>`:''}
     <div class="caption c-mut">${esc(l.title)} · ${cur(l.ton)}${l.sig?` · <button class="c-acc" data-a="link" data-v="${SOL_EXPLORER(l.sig)}">транзакция ↗</button>`:''}</div>
     <div class="top caption" style="margin-top:6px"><span class="c-sec">Лежит ${d} ${dayWord(d)}${ok?'':` из ${LOCK_DAYS}`}</span><span>на кошелёк <b>${fmt(out)}</b></span></div>
     <div class="prog" style="height:4px"><i style="width:${pct}%"></i></div>
-    <div class="caption c-mut">${ok?`Можно вывести · комиссия ${FEE}%`:`Вывод через ${left} ${dayWord(left)} · комиссия ${FEE}%`}</div>
+    <div class="caption c-mut">${ok?`Можно вывести · комиссия ${FEE}%`:live?`Вывод — после завершения Тропы и не раньше 14 дней · комиссия ${FEE}%`:`Вывод через ${left} ${dayWord(left)} · комиссия ${FEE}%`}</div>
     <div class="top caption" style="margin-top:4px;border-top:1px solid var(--b-default);padding-top:8px"><span class="c-sec">${l.tip?`Автору @${esc(l.author||'')}: ${l.tip}% · ${fmt(lotTip(l))} DEMOS`:'Награда автору не выбрана'}</span><button class="c-acc" style="font-weight:600" data-a="tip-edit" data-i="${S.lots.indexOf(l)}">Изменить</button></div></div>`; }
 function walletHTML(){ if (PTS) return pointsHTML();
   const w = S.wallet, bal = balance();
@@ -434,7 +456,7 @@ SCREENS.withdraw = () => { const bal = readyBal(), out = netOut();
   return `<div class="screen">${topbar('Вывод DEMOS')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:12px">
   <div class="box center" style="padding:20px"><div class="caption c-sec">На кошелёк</div><div class="title" style="font-size:36px">${fmt(out)}</div><div class="caption c-sec">DEMOS из ${fmt(bal)}, которые уже можно вывести</div></div>
   <div class="strong">По каждой покупке</div>
-  ${S.lots.map(l=>{ const d=daysHeld(l), ok=canOut(l), left=daysLeft(l); return `<div class="kv"><div><div>+${fmt(l.demos)} DEMOS</div><div class="caption c-mut">лежит ${d} ${dayWord(d)} · ${ok?`комиссия ${FEE}%`:`вывод через ${left} ${dayWord(left)}`}</div>${ok?`<div class="caption c-mut">${l.tip?`автору <b class="nick">@${esc(l.author||'')}</b>: ${l.tip}% · ${fmt(lotTip(l))}`:`<b class="nick">@${esc(l.author||'')}</b> · без награды автору`} · <button class="c-acc" data-a="tip-edit" data-i="${S.lots.indexOf(l)}">изменить</button></div>`:''}</div><span class="v ${ok?'':'c-mut'}">${ok?fmt(lotOut(l)):'—'}</span></div>`; }).join('')}
+  ${S.lots.map(l=>{ const d=daysHeld(l), ok=canOut(l), left=daysLeft(l); return `<div class="kv"><div><div>+${fmt(lotDemos(l))} DEMOS <span class="c-mut">(${coefStr(lotK(l))})</span></div><div class="caption c-mut">лежит ${d} ${dayWord(d)} · ${ok?`комиссия ${FEE}%`:l.settled===false?'вывод после завершения Тропы':`вывод через ${left} ${dayWord(left)}`}</div>${ok?`<div class="caption c-mut">${l.tip?`автору <b class="nick">@${esc(l.author||'')}</b>: ${l.tip}% · ${fmt(lotTip(l))}`:`<b class="nick">@${esc(l.author||'')}</b> · без награды автору`} · <button class="c-acc" data-a="tip-edit" data-i="${S.lots.indexOf(l)}">изменить</button></div>`:''}</div><span class="v ${ok?'':'c-mut'}">${ok?fmt(lotOut(l)):'—'}</span></div>`; }).join('')}
   <div class="kv"><span class="k">Награда авторам</span><span class="v">${fmt(tipsTotal())} DEMOS</span></div>
   <div class="kv"><span class="k">Комиссия всего</span><span class="v">${fmt(bal-out-tipsTotal())} DEMOS</span></div>
   <div class="kv"><span class="k">Кошелёк</span><span class="v">${S.wallet.ton||'не подключён'}</span></div>
@@ -458,12 +480,12 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди',PTS?'«Раздать» — голос бесплатно. X3D — голос, на который человек тратит очки, расширяя охват до 36.':'«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':(ANDROID_APP?'Android':'веб')} · версия 0.44 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':(ANDROID_APP?'Android':'веб')} · версия 0.45 · тестовые данные</div></div></div>`;
 
 const rewardWeb = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
-  <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Вся сумма превращается в DEMOS на вашем счёте. Это не обещание дохода.</div>
-  ${[['1. Оплата',`${numRu(1*CURK)}, ${numRu(10*CURK)} или ${cur(100)}.`],['2. Обмен','Вся сумма сразу превращается в DEMOS по текущей цене. Цена в окне оплаты обновляется автоматически каждые 60 секунд; обмен — по цене, которая была на экране в момент оплаты.'],['3. Счёт','DEMOS лежат на вашем счёте в приложении. Каждая покупка хранится отдельно.'],['4. Вывод','Вывести DEMOS на свой кошелёк можно через 14 дней после покупки. Комиссия — 6%.'],['5. Охват','Одинаковый при любой сумме: +36 человек. Сумма влияет только на количество DEMOS и на Money Trust Тропы.'],['6. Приглашения',`Пригласивший получает 1% от каждого X3D и благодарности друга в ${CUR} — через 14 дней после покупки, 6 месяцев. Это часть комиссии платформы, у вас ничего не удерживается.`],['7. Пилот','На пилоте DEMOS — внутренние очки, вывода на кошелёк ещё нет.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="caption c-sec">${b[1]}</div></div>`).join('')}
-  <div class="box"><div class="strong">Пример</div><div class="caption c-sec">Вы оплатили ${cur(10)}. По курсу ${rateLine(300)} на ваш счёт придёт 3 000 DEMOS. Через 14 дней их можно вывести: 2 820 DEMOS на кошелёк после комиссии 6%. Курс в примере условный.</div></div>
+  <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Сумма превращается в DEMOS и идёт в общую сумму X3D Тропы. Это не обещание дохода.</div>
+  ${[['1. Оплата',`${numRu(1*CURK)}, ${numRu(10*CURK)} или ${cur(100)}.`],['2. Обмен','Вся сумма сразу превращается в DEMOS по текущей цене. Цена в окне оплаты обновляется автоматически каждые 60 секунд; обмен — по цене, которая была на экране в момент оплаты.'],['3. Коэффициент ×0,7–×2,0',KA_TEXT.replace('Итог — когда Тропа завершится.','')],['4. Счёт','Каждая покупка хранится отдельно; пока Тропа жива, показывается текущая оценка — она растёт, когда после вас покупают X3D. Итог фиксируется, когда Тропа завершится.'],['5. Вывод','После завершения Тропы и не раньше 14 дней после покупки. Комиссия — 6%.'],['6. Охват','Одинаковый при любой сумме: +36 человек.'],['7. Приглашения',`Пригласивший получает 1% от каждого X3D и благодарности друга в ${CUR} — через 14 дней после покупки, 6 месяцев. Это часть комиссии платформы, у вас ничего не удерживается.`],['8. Защита от накрутки','Одна покупка X3D на человека в одной Тропе; сумма одной покупки ограничена (до 1 SOL); вывод не раньше 14 дней — модерация успевает проверить подозрительные покупки.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="caption c-sec">${b[1]}</div></div>`).join('')}
+  <div class="box"><div class="strong">Пример</div><div class="caption c-sec">Вы оплатили ${cur(10)} — по курсу ${rateLine(300)} это 3 000 DEMOS. Если после вас купили в 9 раз больше — получите около ×1,6–×2,0 (до 6 000 DEMOS); если почти никто — около ×0,7 (2 100 DEMOS). Вывод — после завершения Тропы и 14 дней, комиссия 6%. Курс условный.</div></div>
   <div class="caption c-mut">Цена DEMOS не гарантируется. X3D и вывод недоступны в некоторых странах.</div></div></div>`;
 
 SCREENS.edit = () => `<div class="screen">${topbar('Изменить профиль')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:20px">
@@ -548,11 +570,11 @@ const x3dWeb = p => { const t = byId(p.id); const a = p.amount || 10;
    <div style="display:flex;justify-content:space-between;align-items:center"><div class="heading">Буст Тропы</div>${strengthHTML(t.strength,t.trend)}</div>
    <div class="caption c-sec">Тропу увидят ещё 36 человек рядом с вами и по тегам</div>
    <div class="nft-row">${NFT_TIERS.map(tr=>nftCard(tr, tr.ton===a)).join('')}</div>
-   <div><div class="kv"><div><div class="k">Цена DEMOS</div><div class="fine c-mut">обновится через <span id="rate-left">${mmss(priceLeft())}</span></div></div><span class="v">${rateLine(S.rate)}</span></div><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">На ваш счёт</span><span class="v">≈ ${fmt(a*S.rate)} DEMOS</span></div><div class="kv"><span class="k">Комиссия</span><span class="v">6%</span></div></div>
+   <div><div class="kv"><div><div class="k">Цена DEMOS</div><div class="fine c-mut">обновится через <span id="rate-left">${mmss(priceLeft())}</span></div></div><span class="v">${rateLine(S.rate)}</span></div><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">Покупка</span><span class="v">≈ ${fmt(a*S.rate)} DEMOS</span></div><div class="kv"><div><div class="k">При завершении Тропы</div><div class="fine c-mut">×0,7–×2,0: чем больше купят после вас</div></div><span class="v">${fmt(Math.round(a*S.rate*KA_MIN))}–${fmt(Math.round(a*S.rate*KA_MAX))}</span></div><div class="kv"><div><div class="k">Если Тропа завершится сразу</div><div class="fine c-mut">с учётом тех, кто купил до вас (${cur(trailVol(t))})</div></div><span class="v">≈ ${fmt(Math.round(a*S.rate*kaCoef(trailVol(t)+a, trailVol(t), a)))}</span></div><div class="kv"><span class="k">Комиссия при выводе</span><span class="v">6%</span></div></div>
    <div class="tipbox"><div class="top"><span class="strong">Награда автору</span><span class="caption c-mut">необязательно</span></div>
    <div class="caption c-sec">Сколько DEMOS из этой покупки (после комиссии 6%) оставить @${esc(t.author)}. Передаются при выводе токенов на кошелёк либо по завершении Тропы.</div>
    ${tipChooser(afterFee(a*S.rate), p.tip, p.tipCustom)}</div>
-   <div class="fine c-mut">Вся сумма сразу превращается в DEMOS по рынку и лежит на вашем счёте в приложении. Комиссия 6% — только при выводе на кошелёк; вывести можно через 14 дней после покупки. Цена DEMOS не гарантируется.</div>
+   <div class="fine c-mut">Сумма превращается в DEMOS по рынку и идёт в общую сумму X3D Тропы. Когда Тропа завершится, общая сумма делится между покупателями по коэффициенту ×0,7–×2,0: ничего не добавляется и не удерживается сверх комиссии. Вывести можно после завершения Тропы и не раньше 14 дней после покупки, комиссия 6%. Цена DEMOS не гарантируется.</div>
    <button class="caption c-acc" style="text-align:left" data-a="go" data-to="reward">Как работает X3D →</button>
 </div>
    <div class="foot">${S.residentDone?'':`<button type="button" class="check ${S.residentOk?'on':''}" data-a="resident"><span class="bx"></span><span>Я согласен с тем, что цена не гарантируется, и подтверждаю, что не являюсь резидентом страны из списка ограничений</span></button>`}<button class="btn primary" id="x3d-pay" data-a="x3d-pay" data-id="${t.id}" ${(S.residentOk||S.residentDone)?'':'disabled'}>Оплатить ${cur(a)}</button><button class="btn ghost" data-a="close">Отмена</button></div>`; };
@@ -698,9 +720,10 @@ SHEETS.paying = p => `<div class="grab"></div><div class="sc center" style="padd
 const boostedWeb = p => { const t = byId(p.id), x = t.my.x3d;
   return `<div class="grab"></div><div class="sc center" style="display:flex;flex-direction:column;gap:10px"><div class="icon-circle" style="background:var(--bg-success-soft);color:var(--t-success)">✓</div><div class="heading">Вы поддержали Тропу</div>
    <div class="caption c-sec">Тропу увидят ещё 36 человек рядом с вами и по тегам. Вы подписаны на Тропу — пришлём её дополнения.</div>
-   <div style="text-align:left"><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">На ваш счёт</span><span class="v">+${fmt(x.demos)} DEMOS</span></div><div class="kv"><span class="k">Награда автору</span><span class="v">${x.tip?`${x.tip}% · ${fmt(tipOf(x.demos, x.tip))} DEMOS`:'не выбрана'}</span></div></div>
+   <div style="text-align:left"><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">Покупка</span><span class="v">${fmt(x.demos)} DEMOS</span></div><div class="kv"><span class="k">Ваш номер</span><span class="v">№${x.lot?x.lot.n:t.x3d}</span></div><div class="kv"><span class="k">Награда автору</span><span class="v">${x.tip?`${x.tip}% от итога`:'не выбрана'}</span></div></div>
+   ${x.lot?`<div class="box" style="text-align:left" data-lotbar="${t.id}" data-full="1">${kaBarHTML(lotK(x.lot), x.demos, lotDemos(x.lot))}</div>`:''}
    ${p.sig?`<button class="caption c-acc" data-a="link" data-v="${SOL_EXPLORER(p.sig)}">Транзакция в Solana Explorer (Devnet) ↗</button>`:''}
-   <div class="caption c-mut">Награду автору можно изменить в кошельке в любой момент, пока она не передана: передаётся при выводе или когда Тропа завершится. Сейчас тестовая сеть Solana (Devnet): деньги ненастоящие, цена и DEMOS условные.</div></div>
+   <div class="caption c-mut">Итог — когда Тропа завершится: общая сумма X3D Тропы делится по коэффициенту ×0,7–×2,0. Награду автору можно изменить в кошельке до вывода. Сейчас тестовая сеть Solana (Devnet): деньги ненастоящие, цена и DEMOS условные.</div></div>
    <div class="foot"><button class="btn primary" data-a="close">Готово</button></div>`; };
 SHEETS.mt = p => { const t = byId(p.id); return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
    <div class="heading">Money Trust</div><div class="body c-sec">${PTS?'Показывает, насколько люди готовы тратить очки на охват этой Тропы.':'Показывает, насколько люди готовы платить за охват этой Тропы.'}</div>
@@ -747,7 +770,7 @@ const x3dPts = p => { const t = byId(p.id); const a = p.amount || 10, cost = Mat
    <div style="display:flex;justify-content:space-between;align-items:center"><div class="heading">Буст Тропы</div>${strengthHTML(t.strength,t.trend)}</div>
    <div class="caption c-sec">Тропу увидят ещё 36 человек рядом с вами и по тегам</div>
    <div class="nft-row">${NFT_TIERS.map(tr=>nftCard(tr, tr.ton===a)).join('')}</div>
-   <div><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">Спишется</span><span class="v">${ptsN(cost)}</span></div><div class="kv"><div><div class="k">X3D в этой Тропе</div><div class="fine c-mut">вы будете №${t.x3d+1}</div></div><span class="v">${ptsN(trailVol(t))}</span></div><div class="kv"><div><div class="k">Вернётся очков</div><div class="fine c-mut">×0,3–×3,0: чем больше купят после вас</div></div><span class="v">${fmt(Math.round(COEF_MIN*cost))}–${fmt(Math.round(COEF_MAX*cost))}</span></div><div class="kv"><span class="k">У вас</span><span class="v ${ok?'':'c-warn'}">${ptsN(ptsBal())}</span></div></div>
+   <div><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">Спишется</span><span class="v">${ptsN(cost)}</span></div><div class="kv"><div><div class="k">X3D в этой Тропе</div><div class="fine c-mut">вы будете №${t.x3d+1}</div></div><span class="v">${ptsN(trailVol(t))}</span></div><div class="kv"><div><div class="k">Вернётся очков</div><div class="fine c-mut">×0,7–×2,0: чем больше купят после вас</div></div><span class="v">${fmt(Math.round(COEF_MIN*cost))}–${fmt(Math.round(COEF_MAX*cost))}</span></div><div class="kv"><div><div class="k">Если Тропа завершится сразу</div><div class="fine c-mut">с учётом тех, кто купил до вас</div></div><span class="v">${ptsN(Math.round(kaPay(trailVol(t)+cost, trailVol(t), cost)))}</span></div><div class="kv"><span class="k">У вас</span><span class="v ${ok?'':'c-warn'}">${ptsN(ptsBal())}</span></div></div>
    <div class="tipbox"><div class="top"><span class="strong">Награда автору</span><span class="caption c-mut">необязательно</span></div>
    <div class="caption c-sec">Какой % очков за этот буст отдать @${esc(t.author)}. Передаётся, когда Тропа завершится; изменить можно до этого — в профиле → «Очки».</div>
    ${tipChooser(cost, p.tip, p.tipCustom)}</div>
@@ -760,7 +783,7 @@ const boostedPts = p => { const t = byId(p.id), x = t.my.x3d;
    <div class="caption c-sec">Тропу увидят ещё 36 человек рядом с вами и по тегам. Вы подписаны на Тропу — пришлём её дополнения.</div>
    <div style="text-align:left"><div class="kv"><span class="k">Охват</span><span class="v">+36 человек</span></div><div class="kv"><span class="k">Потрачено</span><span class="v">${ptsN(x.pts)}</span></div><div class="kv"><span class="k">Ваш номер</span><span class="v">№${x.n}</span></div><div class="kv"><span class="k">Награда автору</span><span class="v">${x.tip?`${x.tip}%`:'не выбрана'}</span></div><div class="kv"><span class="k">Осталось у вас</span><span class="v">${ptsN(ptsBal())}</span></div></div>
    <div class="box" style="text-align:left" data-boost="${t.id}" data-compact="0">${coefBar(t, x)}</div>
-   <div class="caption c-mut">Сейчас после вас никто не купил — коэффициент ×0,3. Он растёт, когда после вас покупают X3D этой Тропы, до ×3,0. Итог — когда Тропа завершится. Следить можно на Тропе и в профиле → «Очки».</div></div>
+   <div class="caption c-mut">Коэффициент растёт, когда после вас покупают X3D этой Тропы: от ×0,7 до ×2,0. Всё выплачивается из общей суммы X3D Тропы — сколько получают первые сверх своего, столько недополучают последние. Итог — когда Тропа завершится. Следить можно на Тропе и в профиле → «Очки».</div></div>
    <div class="foot"><button class="btn primary" data-a="close">Готово</button></div>`; };
 const thankPts = p => { const t = byId(p.id), v = thankTon(p), pts = Math.round(v*CURK), ok = v>=1, enough = ptsBal() >= pts;
   return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:12px">
@@ -786,12 +809,12 @@ const thanksPts = () => `<div class="screen">${topbar('Благодарност�
   <div class="caption c-mut center">Ещё 33 благодарности — в рабочей версии</div></div></div>`;
 const rewardPts = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. В Telegram-версии DEMOS буст и благодарности — на очках.</div>
-  ${[['1. Очки',`${ptsN(PTS_START)} при входе и +${PTS_SHARE} за каждую бесплатную раздачу Тропы.`],['2. Буст',`${ptsN(10)}, ${ptsN(100)} или ${ptsN(1000)}. Очки списываются, Тропа получает +36 человек. Вы автоматически подписываетесь на Тропу.`],['Коэффициент ×0,3–×3,0','Зависит от того, сколько X3D купят после вас. Считается по вашей доле в общем объёме X3D Тропы: доля до 10% — ×3,0; 20% — ×2,7; 30% — ×2,4; 40% — ×2,1; 50% — ×1,8; 60% — ×1,5; 70% — ×1,2; 80% — ×0,9; 90% — ×0,6; 100% (после вас никто) — ×0,3. Между значениями — плавно. Пример: вы потратили 100 очков — получите от 30 до 300. Итог — когда Тропа завершится.'],['3. Охват','Одинаковый при любой сумме: +36 человек. Сумма влияет только на Money Trust Тропы.'],['4. Награда автору','Какой % очков за буст отдать автору. Передаётся, когда Тропа завершится; изменить можно в любой момент до этого.'],['5. Благодарность','Очки автору отдельно от буста, с сообщением до 500 знаков. За одну Тропу — один раз.'],['6. Только очки','Очки нельзя купить, вывести или обменять на деньги.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="caption c-sec">${b[1]}</div></div>`).join('')}</div></div>`;
+  ${[['1. Очки',`${ptsN(PTS_START)} при входе и +${PTS_SHARE} за каждую бесплатную раздачу Тропы.`],['2. Буст',`${ptsN(10)}, ${ptsN(100)} или ${ptsN(1000)}. Очки списываются, Тропа получает +36 человек. Вы автоматически подписываетесь на Тропу.`],['Коэффициент ×0,7–×2,0',KA_TEXT],['3. Охват','Одинаковый при любой сумме: +36 человек. Сумма влияет только на Money Trust Тропы.'],['4. Награда автору','Какой % очков за буст отдать автору. Передаётся, когда Тропа завершится; изменить можно в любой момент до этого.'],['5. Благодарность','Очки автору отдельно от буста, с сообщением до 500 знаков. За одну Тропу — один раз.'],['6. Только очки','Очки нельзя купить, вывести или обменять на деньги.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="caption c-sec">${b[1]}</div></div>`).join('')}</div></div>`;
 function pointsHTML(){
   const log = S.pts.log.slice(0,8);
   return `<div class="pad" style="display:flex;flex-direction:column;gap:12px;padding-bottom:24px">
     <div class="box"><div class="caption c-sec">Очки</div><div style="display:flex;align-items:baseline;gap:6px"><span class="title">${fmt(ptsBal())}</span><span class="c-sec">${ptsWord(ptsBal())}</span></div>
-      <div class="caption c-sec" style="margin-top:2px">${ptsN(PTS_START)} при входе, +${PTS_SHARE} за каждую раздачу и очки за буст (коэффициент ×0,3–×3,0). Тратятся на X3D и благодарности. Купить, вывести или обменять на деньги нельзя.</div></div>
+      <div class="caption c-sec" style="margin-top:2px">${ptsN(PTS_START)} при входе, +${PTS_SHARE} за каждую раздачу и очки за буст (коэффициент ×0,7–×2,0). Тратятся на X3D и благодарности. Купить, вывести или обменять на деньги нельзя.</div></div>
     <div class="strong" style="margin-top:6px">История</div>
     <div>${log.map(e=>`<div class="kv"><span>${esc(e.text)}</span><span class="strong ${e.d>0?'c-suc':''}">${e.d>0?'+':'−'}${fmt(Math.abs(e.d))}</span></div>`).join('')}</div>
     <div class="strong" style="margin-top:6px">Мои X3D</div>
@@ -1091,7 +1114,7 @@ function finishThank(id, ton, text, rate, sig){
   haptic('heavy'); openSheet('thanked', {id, v:demos, ton, text, sig}); refreshCard(id); }
 // очки (Telegram-версия): списание сразу, без кошелька и цены
 function saveBoosts(){ if (!PTS) return; const o = {}; S.trails.forEach(t => { if (t.my.x3d && t.my.x3d.before != null) o[t.id] = {x:t.my.x3d, vol:trailVol(t), x3d:t.x3d}; }); store.set('ptsBoosts', o); }
-function settleBoost(t){ const x = t.my.x3d; if (!x || x.paid) return; x.coefFinal = coefAt(xShare(t,x)); x.paid = Math.round(x.coefFinal*x.pts); x.tipPaid = Math.round(x.paid*(x.tip||0)/100);
+function settleBoost(t){ const x = t.my.x3d; if (!x || x.paid) return; x.paid = Math.round(kaPay(trailVol(t), x.before, x.pts)); x.coefFinal = x.paid/x.pts; x.tipPaid = Math.round(x.paid*(x.tip||0)/100);
   ptsAdd(x.paid - x.tipPaid, `Буст ${coefStr(x.coefFinal)} · ` + t.frags[0].text.slice(0,20) + '…'); saveBoosts(); }
 function payPts(id, a, tip){ const t = byId(id), cost = Math.round(a*CURK); if (ptsBal() < cost) return;
   ptsAdd(-cost, 'X3D · ' + t.frags[0].text.slice(0,24) + '…');
@@ -1110,13 +1133,17 @@ async function doPay(id, a, tip, rate){
   openSheet('paying', {amount:a}); await new Promise(r=>setTimeout(r,1400)); finishPay(id, a, tip, rate, null); }
 function finishPay(id, a, tip, rate, sig){
   { const t = byId(id); const demos = a*rate;
-    t.my.x3d = {amount:a, demos, viewed:0, fwd:0, at:Date.now(), tip};
-    if (!t.my.shared){ t.shares++; t.my.shared = true; } t.x3d++; t.my.subscribed = true;
-    const lot = {at:Date.now(), demos, trail:id, title:t.frags[0].text.slice(0,34)+'…', ton:a, author:t.author, tip, sig};
+    const before = trailVol(t); t.vol = before + a;
+    const lot = {at:Date.now(), demos, trail:id, title:t.frags[0].text.slice(0,34)+'…', ton:a, author:t.author, tip, sig, before, n:t.x3d+1, settled:false, closeAt:Date.now()+TEST_CLOSE_MIN*60000};
+    t.my.x3d = {amount:a, demos, at:Date.now(), tip, lot};
+    if (!t.my.shared){ t.shares++; t.my.shared = true; } t.x3d++; t.my.subscribed = true; // автоматическая подписка на Тропу
     S.lots.push(lot); // каждая покупка — отдельно, для комиссии при выводе
-    if (sig){ const sv = store.get('solLots', []); sv.push(lot); store.set('solLots', sv); }
+    saveWebLots();
     S.myX3d.unshift({title:t.frags[0].text.slice(0,34)+'…', st:'На счёте', info:cur(a), rew:`${fmt(demos)} DEMOS`});
-    haptic('heavy'); openSheet('boosted', {id, sig}); refreshCard(id); } }
+    haptic('heavy'); openSheet('boosted', {id, sig}); refreshCard(id); simulateBoost(id); } }
+// полная версия: покупки и объёмы Троп сохраняются на устройстве (до сервера)
+function saveWebLots(){ if (PTS) return; store.set('solLots', S.lots.filter(l => l.settled !== undefined || l.sig)); const v = {}; S.trails.forEach(t => { if (t.vol != null) v[t.id] = {vol:t.vol, x3d:t.x3d}; }); store.set('webVols', v); }
+function settleLots(t){ S.lots.forEach(l => { if (l.trail === t.id && l.settled === false){ l.k = kaCoef(trailVol(t), l.before, l.ton); l.settled = true; } }); saveWebLots(); }
 function simulateBoost(id){ const t = byId(id); const iv = setInterval(()=>{ const x = t.my.x3d; if(!x){clearInterval(iv);return;}
   if (PTS){ if (x.paid){ clearInterval(iv); return; }
     // тест: после вас другие покупают X3D этой Тропы (в рабочей версии — настоящие покупки)
@@ -1126,8 +1153,16 @@ function simulateBoost(id){ const t = byId(id); const iv = setInterval(()=>{ con
     document.querySelectorAll(`[data-boostcard="${id}"]`).forEach(el => { el.innerHTML = ptsBlock(t); });
     if (x.paid && !S.sheet && S.screen==='main' && S.tab==='profile') render(false);
     return; }
-  x.viewed = Math.min(36, x.viewed + 3 + Math.floor(Math.random()*4)); if (Math.random()>.55) x.fwd = Math.min(6, x.fwd+1);
-  if (!S.sheet) refreshCard(id); if (x.viewed>=36 && x.fwd>=6) clearInterval(iv); }, 4000); }
+  // полная версия (тест): после вас другие покупают X3D этой Тропы; Тропа «завершается» через 3 мин
+  const lot = x.lot; if (!lot || lot.settled !== false){ clearInterval(iv); return; }
+  if (Math.random() < 0.6){ t.vol = trailVol(t) + [1,1,10,10,10,100][Math.floor(Math.random()*6)]; t.x3d++; }
+  if (Date.now() >= lot.closeAt){ settleLots(t); clearInterval(iv); if (!S.sheet) toast(`Тропа завершилась: ${coefStr(lot.k)} · +${fmt(lotDemos(lot))} DEMOS`); } else saveWebLots();
+  document.querySelectorAll(`[data-webcard="${id}"]`).forEach(el => { el.innerHTML = webBlock(t); });
+  document.querySelectorAll(`[data-lotbar="${id}"]`).forEach(el => { el.innerHTML = kaBarHTML(lotK(lot), lot.demos, lotDemos(lot), !el.dataset.full); });
+  if (lot.settled && !S.sheet && S.screen==='main' && S.tab==='profile') render(false); }, 4000); }
+if (WEB){ const v = store.get('webVols', {}); Object.keys(v).forEach(id => { const t = byId(id); if (t){ t.vol = v[id].vol; t.x3d = v[id].x3d; } });
+  S.lots.forEach(l => { if (l.settled === undefined) return; const t = byId(l.trail); if (!t) return; t.my.x3d = {amount:l.ton, demos:l.demos, at:l.at, tip:l.tip, lot:l}; t.my.shared = true; t.my.subscribed = true;
+    if (l.settled === false){ if (Date.now() >= l.closeAt) settleLots(t); else simulateBoost(t.id); } }); }
 if (PTS){ const saved = store.get('ptsBoosts', {}); Object.keys(saved).forEach(id => { const t = byId(id), sv = saved[id]; if (!t || !sv || !sv.x || sv.x.before == null) return;
     t.my.x3d = sv.x; t.vol = sv.vol; t.x3d = sv.x3d; t.my.shared = true; t.my.subscribed = true;
     if (!S.myX3d.some(m=>m.trail===id)) S.myX3d.unshift({title:t.frags[0].text.slice(0,34)+'…', st:'Буст', info:ptsN(t.my.x3d.pts), rew:'', trail:id});
