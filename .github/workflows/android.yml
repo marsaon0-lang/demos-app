@@ -35,10 +35,23 @@ jobs:
           gradle-version: '8.10.2'
 
       - name: Build APK
+        id: build
         working-directory: android
         env:
           VERSION_CODE: ${{ github.run_number }}
-        run: gradle assembleDebug --no-daemon
+        run: |
+          set -o pipefail
+          gradle assembleDebug --no-daemon 2>&1 | tee ../build.log
+
+      # журнал сборки при ошибке — в Releases → android-build-log (чтобы прочитать без входа в GitHub)
+      - name: Publish build log on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          grep -nE "^e: |error:|FAILURE|What went wrong|Could not|Unresolved|Caused by" build.log | head -120 > build-errors.txt || true
+          gh release delete android-build-log --yes --cleanup-tag || true
+          gh release create android-build-log build.log build-errors.txt --title "Android build log" --notes "Журнал последней неудачной сборки" --prerelease
 
       - name: Publish release
         env:
