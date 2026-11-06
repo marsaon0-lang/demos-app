@@ -21,7 +21,7 @@ const haptic = (t='light') => { try{ tg && tg.HapticFeedback && tg.HapticFeedbac
 
 // ---------- состояние ----------
 // 25.10: свои живые Тропы — всегда в ленте (раньше попадали только только что созданные — ошибка)
-const allTrails = () => [...S.myTrails.filter(t=>t.status==='active'), ...S.trails];
+const allTrails = () => [...S.myTrails.filter(t=>t.status==='active' && !t.ended && !t.destroyed), ...S.trails.filter(t=>!t.ended && !t.destroyed)]; // 06.11: завершённые и уничтоженные (Коннект) — не в ленте
 const S = {
   onboarded: store.get('onboarded', false),
   screen: null, params: {}, stack: [], sheet: null,
@@ -65,6 +65,7 @@ async function saveMine(){ try{ const created = [], adds = {};
 
 // ---------- иконки ----------
 const I = {
+  connect:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13M13 4l4 4-4 4M20 16H7M11 12l-4 4 4 4"/></svg>',
   back:'<svg viewBox="0 0 10 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 1.5L1.5 9l7 7.5"/></svg>',
   trails:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
   profile:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-5.5 8-5.5s6.5 1.5 8 5.5"/></svg>',
@@ -136,8 +137,8 @@ function cardHTML(t, opts={}){
   const tags = t.tags.slice(0,10).map(tg=>chipHTML(tg)).join('') + (t.tags.length>10?`<button class="chip all" data-a="alltags" data-id="${t.id}">Все теги · ${t.tags.length}</button>`:'');
   const canAdd = !t.own && !t.my.tagAdded;
   const author = t.own
-    ? `<div class="author"><div class="who"><div class="nick">@${t.author}</div><div class="meta">Ваша Тропа · ${t.ago}</div></div><button class="more" data-a="menu" data-id="${t.id}">⋯</button></div>`
-    : `<div class="author"><button class="who" data-a="author" data-id="${t.id}" style="text-align:left"><div class="nick">@${t.author}</div><div class="meta">${t.ago} · ${t.dist}</div></button><button class="sub-btn ${t.my.subscribed?'on':''}" data-a="subscribe" data-id="${t.id}">${t.my.subscribed?'Вы подписаны':'Подписаться'}</button><button class="more" data-a="menu" data-id="${t.id}">⋯</button></div>`;
+    ? `<div class="author"><div class="who"><div class="nick">@${t.author}</div><div class="meta">${t.connectOf?'Ваш коннект':'Ваша Тропа'} · ${t.ago}</div></div><button class="more" data-a="menu" data-id="${t.id}">⋯</button>${mtPill(t)}</div>`
+    : `<div class="author"><button class="who" data-a="author" data-id="${t.id}" style="text-align:left"><div class="nick">@${t.author}</div><div class="meta">${t.ago} · ${t.dist}</div></button><button class="sub-btn ${t.my.subscribed?'on':''}" data-a="subscribe" data-id="${t.id}">${t.my.subscribed?'Вы подписаны':'Подписаться'}</button><button class="more" data-a="menu" data-id="${t.id}">⋯</button>${mtPill(t)}</div>`;
   return `<section class="card" data-card="${t.id}">
     <div class="media">
       ${slideHTML(f)}
@@ -164,24 +165,26 @@ function mtRow(t){
 }
 function actionsHTML(t){
   if (t.own){
-    if (t.status==='finished') return `<div class="actions"><div class="box caption c-sec center">Тропа завершена · её раздали ${fmt(t.shares)} раз</div>${mtRow(t)}</div>`;
+    if (t.ended) return endedActions(t);
+    if (t.status==='finished') return `<div class="actions"><div class="box caption c-sec center">Тропа завершена · её раздали ${fmt(t.shares)} раз</div>${connectBar(t)}</div>`;
     return `<div class="actions"><div class="row" style="justify-content:space-between">
       <div><div class="strong">${fmt(t.shares)}</div><div class="caption c-mut">раздали</div></div>
       <div><div class="strong">${t.x3d}</div><div class="caption c-mut">бустов X3D</div></div>
-      <button class="btn primary" style="width:auto;padding:0 18px;height:44px" data-a="addition" data-id="${t.id}">Дополнить Тропу</button></div>${mtRow(t)}</div>`;
+      <button class="btn primary" style="width:auto;padding:0 18px;height:44px" data-a="addition" data-id="${t.id}">Дополнить Тропу</button></div>${connectBar(t)}</div>`;
   }
+  if (t.ended) return endedActions(t);
   const m = t.my;
-  if (m.x3d && PTS && m.x3d.before != null) return `<div class="actions"><div class="part" data-boostcard="${t.id}">${ptsBlock(t)}</div></div>`;
-  if (m.x3d && !PTS && m.x3d.lot) return `<div class="actions"><div class="part" data-webcard="${t.id}">${webBlock(t)}</div></div>`;
+  if (m.x3d && PTS && m.x3d.before != null) return `<div class="actions"><div class="part" data-boostcard="${t.id}">${ptsBlock(t)}</div>${connectBar(t)}</div>`;
+  if (m.x3d && !PTS && m.x3d.lot) return `<div class="actions"><div class="part" data-webcard="${t.id}">${webBlock(t)}</div>${connectBar(t)}</div>`;
   if (m.x3d){
     const x = m.x3d;
     return `<div class="actions"><div class="part">
       <div class="top"><span class="strong">Вы поддержали Тропу</span>${strengthHTML(t.strength,t.trend)}</div>
       <div class="top"><span class="heading">${PTS ? ptsN(x.pts||Math.round(x.amount*CURK)) : `+${fmt(x.demos)} DEMOS`}</span><button class="mt-mini" data-a="mt" data-id="${t.id}"><span class="c-sec">${PTS?'X3D':cur(x.amount)} ·</span>${mtTri(t.mtOf)}<b>${t.mtOf} из 100</b></button></div>
-    </div></div>`;
+    </div>${connectBar(t)}</div>`;
   }
   const shareBtn = m.shared ? '' : `<button class="btn secondary" data-a="share" data-id="${t.id}">${I.share}<span>Раздать</span><span class="cnt">${fmt(t.shares)}</span></button>`;
-  return `<div class="actions"><div class="row">${shareBtn}<button class="btn x3d" data-a="x3d" data-id="${t.id}"><span>X3D · Буст</span><span class="cnt">${t.x3d}</span></button></div>${mtRow(t)}</div>`;
+  return `<div class="actions"><div class="row">${shareBtn}<button class="btn x3d" data-a="x3d" data-id="${t.id}"><span>X3D · Буст</span><span class="cnt">${t.x3d}</span></button></div>${connectBar(t)}</div>`;
 }
 function refreshCard(id){
   const t = byId(id); const el = document.querySelector(`[data-card="${id}"]`); if(!t||!el) return;
@@ -190,6 +193,61 @@ function refreshCard(id){
   el.replaceWith(nw); const s2 = nw.querySelector('.tags-strip'); if(s2) s2.scrollLeft = left;
   setTimeout(syncVideos, 0);
 }
+
+
+// ---------- Коннект: гонка Тропы (основатель 06.11, НЕ МЕНЯТЬ без основателя) ----------
+// • Любой зритель, которому раздали Тропу, может присоединить свою (коннект). Гонка в один уровень: коннект к коннекту нельзя.
+// • Один коннект от человека к одной гонке; автор исходной не соревнуется сам с собой (у него «Дополнить»).
+// • Место — всегда по раздачам. Обогнал — встал №1 (первопроходец), прежний лидер — «был первым».
+// • Обогнанная Тропа, завершившись, остаётся в цепочке: раздачи заморожены, раздавать/X3D/дополнять нельзя, автору — уведомление.
+//   Живая Тропа ниже, набрав больше, встаёт выше — завершённая уступает место.
+// • Гонка живёт, пока жив №1. Завершился №1 — уничтожается всё (исходная и все коннекты), у всех участников X3D — расчёт и стейкинг 3 дня.
+// • Раздача внутри гонки: бесплатно 12, X3D 36 — только среди видевших исходную, поровну: раздавшие / подписанные / оплатившие X3D (детали — при запуске, на сервере).
+// • Раздачи с одного устройства считаются один раз — на сервере.
+const RACE_KEY = 'race50';
+const raceIdOf = t => t.connectOf || t.id;
+const raceAll = rid => [...S.trails, ...S.myTrails].filter(t => !t.destroyed && (t.id === rid || t.connectOf === rid));
+const raceSorted = rid => { const lead = S.raceLead[rid]; return raceAll(rid).sort((a,b) => (b.shares - a.shares) || ((b.id===lead) - (a.id===lead))); };
+const racePos = t => raceSorted(raceIdOf(t)).indexOf(t) + 1;
+const raceLeader = rid => raceSorted(rid)[0];
+const isLive = t => !t.ended && !t.destroyed && t.status !== 'finished';
+const trailsWord = n => n%10===1&&n%100!==11 ? 'Тропа' : (n%10>=2&&n%10<=4&&(n%100<10||n%100>=20)) ? 'Тропы' : 'Троп';
+function saveRace(){ try{ const tr = {}; [...S.trails, ...S.myTrails].forEach(t => { if (raceAll(raceIdOf(t)).length > 1 || t.ended || t.destroyed || t.wasFirst) tr[t.id] = {shares:t.shares, ended:!!t.ended, endedAt:t.endedAt||0, destroyed:!!t.destroyed, wasFirst:!!t.wasFirst}; });
+  store.set(RACE_KEY, {tr, lead:S.raceLead, notices:S.notices}); }catch(e){} }
+(function loadRace(){ S.raceLead = {}; S.notices = []; const d = store.get(RACE_KEY, null);
+  if (d){ Object.keys(d.tr||{}).forEach(id => { const t = byId(id); if (t) Object.assign(t, d.tr[id]); }); S.raceLead = d.lead || {}; S.notices = d.notices || []; }
+  [...S.trails, ...S.myTrails].forEach(t => { if (!t.connectOf && raceAll(t.id).length > 1 && !S.raceLead[t.id]){ const top = raceAll(t.id).sort((a,b)=>b.shares-a.shares)[0]; S.raceLead[t.id] = top.id; } }); })();
+function notify(text, id){ S.notices.unshift({text, id, at:Date.now()}); S.notices = S.notices.slice(0, 20); }
+// обгон: после любого изменения раздач
+function raceCheck(rid){ if (raceAll(rid).length < 2) return null; const cur = S.raceLead[rid]; const top = raceSorted(rid)[0];
+  if (top && top.id !== cur){ const prev = byId(cur); if (prev) prev.wasFirst = true; S.raceLead[rid] = top.id;
+    if (prev && prev.own && !prev.destroyed) notify(`Вашу Тропу обогнали: первопроходец теперь @${top.author}. Ваша — №${racePos(prev)}.`, prev.id);
+    saveRace(); return top; }
+  return null; }
+// расчёт X3D по Тропе — в момент её собственного завершения (подтверждено 06.11)
+function settleTrailX3d(t){ const x = t.my && t.my.x3d; if (!x) return;
+  if (PTS){ if (x.before != null && !x.paid){ x.closeAt = Date.now(); settleBoost(t); } }
+  else settleLots(t); }
+// завершение Тропы по правилу 1 (в тестовой версии — кнопкой на экране гонки)
+function endTrail(t){ if (!isLive(t)) return; const rid = raceIdOf(t);
+  if (raceLeader(rid) === t) return destroyRace(rid);
+  t.ended = true; t.endedAt = Date.now(); settleTrailX3d(t);
+  if (t.own) notify(`Ваша Тропа завершилась, но осталась в лидерской цепочке — №${racePos(t)} в гонке. Раздавать и дополнять её больше нельзя.`, t.id);
+  saveRace(); }
+// №1 завершился — уничтожается вся гонка, у всех участников X3D — расчёт и стейкинг
+function destroyRace(rid){ const all = raceAll(rid); let mine = false;
+  all.forEach(t => { if (isLive(t)){ t.ended = true; t.endedAt = Date.now(); } settleTrailX3d(t); t.destroyed = true; if (t.own) mine = true; });
+  notify(`Гонка завершена: №1 завершился, поэтому Тропа и все коннекты (${all.length}) удалены. У всех, кто купил X3D, — расчёт и стейкинг 3 дня.`, null);
+  if (PTS) saveBoosts(); else saveWebLots(); saveRace(); return all.length; }
+// Money Trust — наверху под ником (решено 06.11: поменять местами с «Коннект»)
+const mtPill = t => `<button class="mtp" data-a="mt" data-id="${t.id}"><span class="l">Money Trust</span><b>${mtText(t)}</b><i class="d"></i>${t.ended?'<span class="r">итог</span>':`${mtTri(t.mtOf,9)}<span class="r">${t.mtOf} из 100</span>`}</button>`;
+// «Коннект» — внизу, на месте Money Trust
+function connectBar(t){ const rid = raceIdOf(t), all = raceAll(rid);
+  if (all.length < 2) return `<button class="cbar" data-a="race" data-id="${t.id}">${I.connect}<b>Коннект</b><span>· ${t.own?'пока никто не присоединился':'присоединить свою Тропу'}</span><i>›</i></button>`;
+  const live = all.filter(isLive).length, pos = racePos(t), lead = raceLeader(rid);
+  return `<button class="cbar" data-a="race" data-id="${t.id}">${I.connect}<b>Коннект · ${all.length}</b><span>· идут ${live} · ${t.own?'ваша':'эта'} №${pos}${lead===t?' · первопроходец':` · ведёт @${esc(lead.author)}`}</span><i>›</i></button>`; }
+// завершённая Тропа в лидерской цепочке: вместо кнопок — плашка
+function endedActions(t){ return `<div class="actions"><div class="ended-note"><div class="strong">Тропа завершена · №${racePos(t)} в лидерской цепочке</div><div class="caption c-sec">Раздавать, покупать X3D и дополнять больше нельзя.</div></div>${connectBar(t)}</div>`; }
 
 // ---------- экраны ----------
 const SCREENS = {};
@@ -342,17 +400,19 @@ function msgCard(th){ return `<div class="box" style="display:flex;flex-directio
     ${th.text?`<div class="body">${linkify(th.text)}</div>`:'<div class="caption c-mut">Без сообщения</div>'}</div>`; }
 const statCol = (v, l) => `<div style="flex:1;min-width:0"><div class="strong">${v}</div><div class="caption c-mut">${l}</div></div>`;
 function myTrailsHTML(){
-  return `<div class="pad" style="display:flex;flex-direction:column;gap:12px">${S.myTrails.map(t=>{ const ms = msgsOf(t), live = t.status==='active';
+  const notes = S.notices.map((n,i) => `<div class="box notice"><div class="caption c-mut">Уведомление · ${agoText(n.at)}</div><div class="strong" style="margin:2px 0 4px">${esc(n.text)}</div><button class="caption c-acc" data-a="notice-ok" data-i="${i}">Понятно</button></div>`).join('');
+  return `<div class="pad" style="display:flex;flex-direction:column;gap:12px">${notes}${S.myTrails.filter(t=>!t.destroyed).map(t=>{ const ms = msgsOf(t), live = t.status==='active' && !t.ended, chain = t.ended && raceAll(raceIdOf(t)).length > 1;
     return `<div class="box" style="display:flex;flex-direction:column;gap:12px">
     <div style="display:flex;gap:12px;align-items:center"><button class="thumb" style="background-image:${mediaBG(t.frags[0])}" data-a="open-trail" data-id="${t.id}">${thumbInner(t.frags[0])}</button>
       <div style="flex:1;min-width:0" data-a="open-trail" data-id="${t.id}"><div class="strong" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(t.frags[0].text)}</div>
-      <div style="margin-top:4px">${live?strengthHTML(t.strength,t.trend):'<span class="badge mut">Тропа завершена</span>'}</div></div></div>
+      <div style="margin-top:4px">${live?strengthHTML(t.strength,t.trend):chain?`<span class="rbadge lead">Завершена · №${racePos(t)} в лидерской цепочке</span>`:'<span class="badge mut">Тропа завершена</span>'}</div></div></div>
     <div style="display:flex;gap:16px">${statCol(fmt(t.shares),'раздали')}${statCol(t.x3d,'X3D')}${statCol(mtText(t),'Money Trust')}</div>
     <div style="background:var(--bg-raised);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:4px"><div class="caption c-sec">Вам из бустов ${live?'сейчас':''}</div>
       <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><span class="heading">${live?'≈ ':''}${fmt(ownAuthorNow(t))}</span><span class="c-acc">${PTS?ptsWord(ownAuthorNow(t)):'DEMOS'} · из ${t.x3d} ${t.x3d%10===1&&t.x3d%100!==11?'буста':'бустов'}</span></div>
       <div class="fine c-mut">${live?'Меняется, пока Тропа жива: покупатели могут изменить награду. Итог — когда Тропа завершится, затем стейкинг 3 дня.':'Зафиксировано при завершении Тропы; стейкинг 3 дня, по трети в день.'}</div></div>
     ${ms.length?`<button style="display:flex;justify-content:space-between;align-items:center;width:100%" data-a="trail-msgs" data-id="${t.id}"><span class="strong">Сообщения · ${ms.length}</span><span class="c-acc">Все ›</span></button>${msgCard(ms[0])}`:'<div class="caption c-mut">Сообщений пока нет — их пишут покупатели бустов вместе с наградой.</div>'}
-    ${live?`<button class="btn secondary" data-a="addition" data-id="${t.id}">Дополнить Тропу</button>`:''}</div>`; }).join('')}
+    ${live?`<button class="btn secondary" data-a="addition" data-id="${t.id}">Дополнить Тропу</button>`:chain?`<div class="caption c-mut">Дополнять нельзя: Тропа завершена. Её обогнали, поэтому она остаётся в гонке под №${racePos(t)}, пока жив №1.</div>`:''}
+    ${connectBar(t)}</div>`; }).join('')}
     <div class="caption c-mut" style="padding:2px 0 24px">Свои Тропы — только здесь. В «Подписках» — чужие Тропы.</div></div>`;
 }
 SCREENS.trailMsgs = () => { const t = byId(S.params.id), ms = msgsOf(t), live = t.status==='active';
@@ -521,6 +581,36 @@ const thanksWeb = () => `<div class="screen">${topbar('Благодарност�
     <div class="caption c-mut">${th.at} · буст ${cur(th.ton)} · ${th.tip}% · ${tr?esc(tr.frags[0].text.slice(0,40))+'…':''}</div>
     ${th.text?`<div class="body">${esc(th.text)}</div>`:'<div class="caption c-mut">Без сообщения</div>'}</div>`; }).join('')}
   <div class="caption c-mut center">Ещё 33 благодарности — в рабочей версии</div></div></div>`;
+
+// экран гонки: все Тропы гонки, дошедшие до зрителя, и сколько идёт (Figma K7)
+SCREENS.race = () => { const t0 = byId(S.params.id); const rid = raceIdOf(t0); const list = raceSorted(rid);
+  if (!list.length) return `<div class="screen">${topbar('Коннект')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:12px;justify-content:center;text-align:center"><div class="title">Гонка завершена</div><div class="body c-sec">№1 завершился, поэтому Тропа и все коннекты удалены. У всех, кто купил X3D, — расчёт и стейкинг 3 дня.</div></div></div>`;
+  const orig = byId(rid), live = list.filter(isLive).length, ended = list.length - live, lead = list[0];
+  const mineIn = list.find(t => t.own && t.connectOf === rid), isAuthor = orig.own;
+  const row = (t, i) => { const pos = i + 1, badges = [];
+    if (i === 0) badges.push('<span class="rbadge lead">Первопроходец</span>');
+    if (t.ended) badges.push(`<span class="rbadge">Завершена${t.wasFirst?' · была первой':''}</span>`); else if (t.wasFirst && i > 0) badges.push('<span class="rbadge">Был первым</span>');
+    const status = i === 0 ? '<span class="c-suc">ведёт</span>' : t.ended ? '<span class="c-mut">Раздавать и дополнять нельзя</span>' : `<span class="c-mut">−${fmt(lead.shares - t.shares)} до №1 · идёт</span>`;
+    return `<button class="race-row ${i===0?'lead':''} ${t.ended?'ended':''}" data-a="race-open" data-id="${t.id}">
+      <span class="rpos">${pos}</span><span class="thumb" style="background-image:${mediaBG(t.frags[0])}">${thumbInner(t.frags[0])}</span>
+      <span class="rinfo"><span class="rtop"><span class="strong c-acc">@${esc(t.author)}</span>${badges.join('')}</span>
+      <span class="caption c-mut">${t.id===rid?'Исходная Тропа':'Коннект'}${t.own?' · ваша':''}</span>
+      <span class="rtxt">${esc(t.frags[0].text)}</span>
+      <span class="caption c-mut">${fmt(t.shares)} раздали · ${t.x3d} X3D · ${mtText(t)}${t.ended?' — итог':''}</span>
+      <span class="caption strong">${status}</span></span></button>`; };
+  const join = isAuthor ? '<div class="caption c-mut center">Вы автор исходной Тропы — соревноваться с собой нельзя, у вас есть «Дополнить».</div>'
+    : mineIn ? `<div class="caption c-mut center">Вы уже присоединили свою Тропу к этой гонке — она №${racePos(mineIn)}.</div>`
+    : '<button class="btn primary" data-a="race-join" data-id="'+rid+'">Присоединить свою Тропу</button>';
+  // тест (без сервера): Тропы не завершаются сами и раздачи не идут — проверяем правила кнопками
+  const test = list.filter(isLive).map(t => `<div class="kv"><span>№${racePos(t)} @${esc(t.author)}</span><span style="display:flex;gap:8px"><button class="chip" data-a="race-test-add" data-id="${t.id}">+100 раздач</button><button class="chip" data-a="race-test-end" data-id="${t.id}">Завершить</button></span></div>`).join('');
+  return `<div class="screen">${topbar(`Коннект · ${list.length} ${trailsWord(list.length)}`)}<div class="scroll pad" style="display:flex;flex-direction:column;gap:10px;padding-bottom:16px">
+    <div class="box" style="display:flex;flex-direction:column;gap:6px"><div class="strong">${esc(orig.frags[0].text.slice(0,60))}${orig.frags[0].text.length>60?'…':''}</div>
+      <div class="caption c-acc">Идут ${live}${ended?` · завершена ${ended}`:''}${list.length<2?' · пока без коннектов':''}</div>
+      <div class="fine c-mut">№1 — первопроходец: ведёт Тропу к новым людям, остальные идут по тем, кто её уже видел. Место — по раздачам; обогнал — встал первым, прежний лидер — «был первым». Обогнанная Тропа, если завершилась, остаётся в цепочке со своим номером: раздавать и дополнять её нельзя. Если завершится №1 — гонка удаляется целиком, у всех участников X3D — расчёт и стейкинг 3 дня.</div></div>
+    ${list.map(row).join('')}
+    <div class="caption c-mut">Здесь все Тропы гонки, которые дошли до вас. Нажмите на Тропу — она откроется.</div>
+    <div class="box" style="display:flex;flex-direction:column;gap:6px"><div class="caption c-sec">Тест без сервера: раздачи и завершение Троп — кнопками</div>${test || '<div class="caption c-mut">Живых Троп нет</div>'}</div>
+    </div><div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))">${join}</div></div>`; };
 SCREENS.trail = () => { const t = byId(S.params.id); return `<div class="screen">${topbar(t.own?'Ваша Тропа':'Тропа')}<div class="feed">${cardHTML(t)}</div></div>`; };
 
 // ---------- приглашённые ----------
@@ -569,7 +659,7 @@ SCREENS.about = () => `<div class="screen">${topbar('О DEMOS')}<div class="scro
   ${[['Равный старт','Любую новую Тропу сразу получают 108 человек рядом и по тегам, дальше — по 12 за каждое «Раздать». Неважно, кто автор и сколько у него знакомых.'],['Никаких подписчиков','Нет поиска людей и Троп, нет подписок на людей. Тропа расходится, только если её раздают.'],['Цену назначают люди',PTS?'«Раздать» — голос бесплатно. X3D — голос, на который человек тратит баллы, расширяя охват до 36.':'«Раздать» — голос бесплатно. X3D — голос, за который человек платит, расширяя охват до 36.'],['Одна новая Тропа в день','Создать новую можно раз в сутки — лента не заваливается. А дополнять свою Тропу можно сколько угодно: история развивается.']].map(b=>`<div><div class="strong">${b[0]}</div><div class="body c-sec">${b[1]}</div></div>`).join('')}
   <div>${['Как работает X3D','Условия использования','Политика конфиденциальности'].map((x,i)=>`<button class="kv" style="width:100%" ${i===0?'data-a="go" data-to="reward"':''}><span>${x}</span><span class="c-mut">›</span></button>`).join('')}</div>
   <button class="btn secondary" data-a="reset">Пройти онбординг заново</button>
-  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':(ANDROID_APP?'Android':'веб')} · версия 0.49 · тестовые данные</div></div></div>`;
+  <div class="caption c-mut center">DEMOS · ${tg?'Telegram':(ANDROID_APP?'Android':'веб')} · версия 0.50 · тестовые данные</div></div></div>`;
 
 const rewardWeb = () => `<div class="screen">${topbar('Как работает X3D')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px">
   <div class="body c-sec">X3D — это буст: Тропу увидят ещё 36 человек. Сумма превращается в DEMOS и идёт в общую сумму X3D Тропы. Это не обещание дохода.</div>
@@ -586,8 +676,10 @@ SCREENS.edit = () => `<div class="screen">${topbar('Изменить профи�
   <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))"><button class="btn primary" data-a="saved">Сохранить</button></div></div>`;
 
 // создание Тропы
-SCREENS.create1 = () => { const d = S.draft; const media = d.media.length;
-  return `<div class="screen">${topbar('Новая Тропа','1/3')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:16px">
+SCREENS.create1 = () => { const d = S.draft; const media = d.media.length; const co = d.connectOf ? byId(d.connectOf) : null;
+  return `<div class="screen">${topbar(co?'Коннект к Тропе':'Новая Тропа', co?'1/2':'1/3')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:16px">
+  ${co?`<div class="box" style="display:flex;flex-direction:column;gap:4px"><div class="caption c-sec">Вы присоединяетесь к гонке Тропы</div><div><span class="strong">@${esc(co.author)}</span> <span class="c-acc">· ${raceAll(co.id).length} ${trailsWord(raceAll(co.id).length)}</span></div>
+    <div class="fine c-mut">Тропу сразу получат 108 ближайших к вам из тех, кто уже видел исходную; дальше — по раздачам, только среди видевших. Обгоните №1 по раздачам — станете первопроходцем и поведёте Тропу к новым людям.</div></div>`:''}
   <label class="box" style="height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background-size:cover;background-position:center;${media&&d.media[0].kind!=='video'?`background-image:url('${d.media[0].url}')`:''};position:relative;cursor:pointer;overflow:hidden">
     ${media&&d.media[0].kind==='video'?vidTag(d.media[0].url,'','position:absolute;inset:0;width:100%;height:100%;object-fit:cover'):''}
     <input type="file" accept="image/*,video/*" multiple data-input="media" style="display:none">
@@ -597,8 +689,8 @@ SCREENS.create1 = () => { const d = S.draft; const media = d.media.length;
   <div class="caption c-mut">Видео до 3 минут или до 10 фото</div>
   <div><div style="display:flex;justify-content:space-between"><span class="caption c-sec">Текст</span><span class="caption c-mut" id="cnt">${d.text.length}/1200</span></div>
   <div class="field"><textarea maxlength="1200" data-input="text" placeholder="Что происходит? Без заголовка — просто расскажите.">${esc(d.text)}</textarea></div></div>
-  <button class="field" style="width:100%;text-align:left;display:flex;gap:10px;align-items:center" data-a="draft-geo"><span>📍</span><span style="flex:1;min-width:0"><span class="caption c-mut">Место начала раздачи</span><br><span class="strong" id="draft-geo-label">${esc(d.geo.label||'Определяем адрес…')}</span><br><span class="caption c-mut" id="draft-geo-sub">${d.geo.src==='gps'?'по GPS':d.geo.src==='manual'?'указано вручную':'точка из профиля'}</span></span><span class="caption c-acc">Изменить</span></button></div>
-  <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))"><button class="btn primary" data-a="go" data-to="create2" ${media&&d.text.trim()?'':'disabled'} id="next1">Далее</button></div></div>`; };
+  ${co?'<div class="caption c-mut">📍 Место и теги не выбираются — их задал первопроходец</div>':''}<button class="field" style="width:100%;text-align:left;${co?'display:none':'display:flex'};gap:10px;align-items:center" data-a="draft-geo"><span>📍</span><span style="flex:1;min-width:0"><span class="caption c-mut">Место начала раздачи</span><br><span class="strong" id="draft-geo-label">${esc(d.geo.label||'Определяем адрес…')}</span><br><span class="caption c-mut" id="draft-geo-sub">${d.geo.src==='gps'?'по GPS':d.geo.src==='manual'?'указано вручную':'точка из профиля'}</span></span><span class="caption c-acc">Изменить</span></button></div>
+  <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))"><button class="btn primary" data-a="go" data-to="${co?'create3':'create2'}" ${media&&d.text.trim()?'':'disabled'} id="next1">Далее</button></div></div>`; };
 SCREENS.create2 = () => { const d = S.draft; const q=(S.params.q||'').trim();
   const list = POPULAR_TAGS.filter(t=>!q || t[0].toLowerCase().includes(q.toLowerCase()));
   return `<div class="screen">${topbar('Новая Тропа','2/3')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:14px;padding-bottom:16px">
@@ -609,16 +701,16 @@ SCREENS.create2 = () => { const d = S.draft; const q=(S.params.q||'').trim();
   ${q && !POPULAR_TAGS.some(t=>t[0].toLowerCase()===q.toLowerCase()) ? `<button class="btn secondary" data-a="ctag" data-v="${esc(q)}">Создать тег «${esc(q)}»</button>`:''}
   <div class="caption c-mut">Выбрано ${d.tags.length} из 3</div></div>
   <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))"><button class="btn primary" data-a="go" data-to="create3" ${d.tags.length?'':'disabled'}>Далее</button></div></div>`; };
-SCREENS.create3 = () => { const d=S.draft;
-  return `<div class="screen">${topbar('Превью','3/3')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:12px;padding-bottom:16px">
+SCREENS.create3 = () => { const d=S.draft; const co = d.connectOf;
+  return `<div class="screen">${topbar('Превью', co?'2/2':'3/3')}<div class="scroll pad" style="display:flex;flex-direction:column;gap:12px;padding-bottom:16px">
   <div style="height:340px;border-radius:16px;position:relative;overflow:hidden;background:#000 center/cover;${d.media[0].kind!=='video'?`background-image:url('${d.media[0].url}')`:''}">${d.media[0].kind==='video'?vidTag(d.media[0].url,'','position:absolute;inset:0;width:100%;height:100%;object-fit:cover'):''}
     <div class="shade-bot" style="position:absolute;left:0;right:0;bottom:0;height:200px;background:linear-gradient(transparent,rgba(0,0,0,.8))"></div>
     <div style="position:absolute;top:12px;left:12px;right:12px;display:flex;gap:6px;flex-wrap:wrap">${d.tags.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>
-    <div style="position:absolute;top:56px;left:12px"><div class="strong">@marsaon</div><div class="caption" style="color:rgba(255,255,255,.75)">только что · рядом</div></div>
+    <div style="position:absolute;top:56px;left:12px"><div class="strong">@marsaon</div><div class="caption" style="color:rgba(255,255,255,.75)">только что · ${co?`коннект к @${esc(byId(co).author)}`:'рядом'}</div></div>
     <div style="position:absolute;left:12px;right:12px;bottom:12px" class="body">${esc(d.text.slice(0,180))}${d.text.length>180?'… ещё':''}</div></div>
-  <div class="caption c-sec">Сразу после публикации Тропу получат люди рядом с вами и подписчики выбранных тегов.</div>
+  <div class="caption c-sec">${co?'Сразу после публикации Тропу получат 108 ближайших к вам из тех, кто уже видел исходную Тропу. Теги — от первопроходца. Новых людей она получает, только когда станет №1 по раздачам. Раздачи, подписки, X3D и Money Trust — свои.':'Сразу после публикации Тропу получат люди рядом с вами и подписчики выбранных тегов.'}</div>
   <div class="box caption c-warn" style="background:var(--bg-warning-soft)">Важно: опубликованную Тропу нельзя удалить или изменить. Она исчезает сама, когда после последней бесплатной раздачи прошло 24 часа. Дополнять можно сколько угодно, не чаще раза в минуту. Новая Тропа — одна в сутки.</div></div>
-  <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))"><button class="btn primary" data-a="publish-ask">Опубликовать Тропу</button></div></div>`; };
+  <div class="pad" style="padding:12px 20px calc(20px + var(--safe-bottom))"><button class="btn primary" data-a="publish-ask">${co?'Присоединить к гонке':'Опубликовать Тропу'}</button></div></div>`; };
 SCREENS.limit = () => `<div class="screen">${topbar('Новая Тропа')}<div class="scroll pad" style="display:flex;flex-direction:column;justify-content:center;gap:12px;text-align:center">
   <div class="icon-circle" style="background:var(--bg-raised)">⏳</div><div class="title">Сегодня вы уже создали новую Тропу</div>
   <div class="body c-sec">Следующую новую можно создать через ${limitLeft()}. А дополнять сегодняшнюю — сколько угодно, не чаще раза в минуту.</div></div>
@@ -835,7 +927,7 @@ SHEETS.comments = p => { const t = byId(p.id);
    ${cmts(t.id).length?'':'<div class="caption c-mut" style="padding:8px 0">Пока без комментариев — напишите первым.</div>'}${cmts(t.id).map(c=>one(c)+c.replies.map(r=>one(r,true)).join('')).join('')}<div class="caption c-mut" style="padding:8px 0">Удалить можно только свой комментарий.</div></div>
    <div class="foot">${S.replyTo?`<div class="caption c-sec" style="display:flex;justify-content:space-between">Ответ @${S.replyTo.who}<button data-a="reply-cancel">✕</button></div>`:''}
    <div style="display:flex;gap:8px"><div class="field" style="flex:1;padding:10px 12px"><input id="cmt" maxlength="500" placeholder="${S.replyTo?'Написать ответ…':'Написать комментарий'}"></div><button class="btn primary" style="width:48px" data-a="send-comment" data-id="${t.id}">↑</button></div></div>`; };
-SHEETS.author = p => { const t = byId(p.id), a = AUTHORS[t.author] || {city:'Москва',about:'',socials:[]};
+SHEETS.author = p => { const t = byId(p.id), a = AUTHORS[t.author] || PEOPLE[t.author] || {city:'Москва',about:'',socials:[]};
   return `<div class="grab"></div><div class="sc" style="display:flex;flex-direction:column;gap:10px">
    <div><div class="heading">@${t.author}</div><div class="caption c-sec">${a.city}</div></div><div class="body">${esc(a.about)}</div>
    ${a.socials.length?`<div class="caption c-mut" style="margin-top:4px">Соцсети автора</div>${a.socials.map(s=>`<button class="kv" style="width:100%;text-align:left" data-a="link" data-v="${s[2]}"><span><span class="strong">${s[0]} · ${s[1]}</span></span><span class="c-acc">›</span></button>`).join('')}`:''}</div>
@@ -989,7 +1081,16 @@ function render(forward){
   S._lastScreen = S.screen;
   renderSheet(); syncBackButton();
   if (S.screen==='map') setTimeout(initMap, 0); else killMap();
-  setTimeout(syncVideos, 0);
+  setTimeout(syncVideos, 0); fitPills();
+}
+// Money Trust на узком экране: сначала чуть мельче, если всё равно задевает «Подписаться» — строкой ниже (06.11)
+function fitPills(){
+  $app.querySelectorAll('.author .mtp').forEach(m => {
+    const sb = m.parentElement.querySelector('.sub-btn'); if (!sb) return;
+    m.classList.remove('tight','wrap');
+    const hit = () => m.getBoundingClientRect().right > sb.getBoundingClientRect().left - 6 && m.getBoundingClientRect().top < sb.getBoundingClientRect().bottom;
+    if (hit()) { m.classList.add('tight'); if (hit()) m.classList.add('wrap'); }
+  });
 }
 function renderSheet(){
   const prev = $app.querySelector('.sheet.float'); const same = prev && S.sheet && prev.dataset.name === S.sheet.name;
@@ -1192,8 +1293,22 @@ A.tag = el => { const v = el.dataset.tag; const on = !S.subs.has(v); on?S.subs.a
   toast(on?`Вы подписались на тег «${esc(v)}»`:`Вы отписались от тега «${esc(v)}»`);
   if (S.screen==='main' && S.feedTab==='subs') render(false); };
 A.subscribe = el => { const t = byId(el.dataset.id); t.my.subscribed = !t.my.subscribed; refreshCard(t.id); toast(t.my.subscribed?'Вы подписаны на Тропу — пришлём её дополнения':'Подписка отменена'); };
-A.share = el => { const t = byId(el.dataset.id); t.my.shared = true; t.shares++; haptic('medium'); if (PTS) ptsAdd(PTS_SHARE, 'Раздача Тропы'); refreshCard(t.id); toast(PTS ? `Тропу получат ещё 12 человек · +${PTS_SHARE} баллов` : 'Тропу получат ещё 12 человек рядом с вами'); };
-A.x3d = el => { if (S.restricted) return toast('Буст недоступен в вашей стране. Раздавать Тропу бесплатно можно.'); openSheet('x3d', {id:el.dataset.id, amount:10}); };
+
+A.race = el => go('race', {id:el.dataset.id});
+A['race-open'] = el => go('trail', {id:el.dataset.id});
+A['race-join'] = el => { const rid = el.dataset.id, orig = byId(rid);
+  if (!orig || orig.destroyed) return toast('Гонка уже завершена');
+  if (orig.own) return toast('Вы автор исходной Тропы — у вас есть «Дополнить»');
+  if (raceAll(rid).some(t => t.own && t.connectOf === rid)) return toast('Вы уже присоединили свою Тропу к этой гонке');
+  S.draft = {media:[], text:'', tags:orig.tags.map(g=>g[0]), geo:{...S.geo}, connectOf:rid}; go('create1'); };
+A['race-test-add'] = el => { const t = byId(el.dataset.id); if (!isLive(t)) return; t.shares += 100; const nl = raceCheck(raceIdOf(t)); saveRace(); render(false);
+  toast(nl ? `@${esc(nl.author)} обогнал — теперь №1, первопроходец` : `+100 раздач · №${racePos(t)}`); };
+A['race-test-end'] = el => { const t = byId(el.dataset.id); if (!isLive(t)) return; const rid = raceIdOf(t), wasLead = raceLeader(rid) === t;
+  if (wasLead){ const n = destroyRace(rid); S.stack = []; S.screen = 'race'; S.params = {id:rid}; render(false); toast(`№1 завершился — гонка удалена (${n} ${trailsWord(n)}), начался расчёт X3D`); return; }
+  endTrail(t); render(false); toast(`@${esc(t.author)} завершилась — осталась в цепочке №${racePos(t)}`); };
+A['notice-ok'] = el => { S.notices.splice(+el.dataset.i, 1); saveRace(); render(false); };
+A.share = el => { const t = byId(el.dataset.id); if (!isLive(t)) return toast('Тропа завершена — раздавать её нельзя'); t.my.shared = true; t.shares++; const nl = raceCheck(raceIdOf(t)); if (nl) setTimeout(()=>toast(`@${esc(nl.author)} — теперь №1 в гонке, первопроходец`), 2700); haptic('medium'); if (PTS) ptsAdd(PTS_SHARE, 'Раздача Тропы'); refreshCard(t.id); toast(PTS ? `Тропу получат ещё 12 человек · +${PTS_SHARE} баллов` : 'Тропу получат ещё 12 человек рядом с вами'); };
+A.x3d = el => { if (!isLive(byId(el.dataset.id))) return toast('Тропа завершена — X3D купить нельзя'); if (S.restricted) return toast('Буст недоступен в вашей стране. Раздавать Тропу бесплатно можно.'); openSheet('x3d', {id:el.dataset.id, amount:10}); };
 A['x3d-amt'] = el => { S.sheet.params.amount = +el.dataset.v; renderSheet(); haptic(); };
 A['tip-pick'] = el => { const v = el.dataset.v; const p = S.sheet.params; p.tip = v==='custom' ? 'custom' : (p.tip===+v && v!=='0' ? null : +v); renderSheet(); if (v==='custom'){ const i=document.getElementById('tip-custom'); if(i) i.focus(); } };
 A['tip-edit'] = el => { const i = +el.dataset.i, l = S.lots[i]; if (!l || l.settled !== false) return toast('Тропа завершилась — награда и сообщение уже зафиксированы'); openSheet('tipEdit', {i, msg:l.msg||'', tip:[0,...TIP_OPTS].includes(l.tip||0)?(l.tip||0):'custom', tipCustom:[0,...TIP_OPTS].includes(l.tip||0)?'':String(l.tip)}); };
@@ -1275,7 +1390,8 @@ function simulateBoost(id){ const t = byId(id); const iv = setInterval(()=>{ con
   if (lot.settled && !S.sheet && S.screen==='main' && S.tab==='profile') render(false); }, 4000); }
 if (WEB){ const v = store.get('webVols', {}); Object.keys(v).forEach(id => { const t = byId(id); if (t){ t.vol = v[id].vol; t.x3d = v[id].x3d; if (v[id].tipPct != null) t.tipPct = v[id].tipPct; } });
   S.lots.forEach(l => { if (l.settled === undefined) return; const t = byId(l.trail);
-    if (!t){ if (l.settled === false){ l.settled = true; l.k = l.k || 1; l.settledAt = l.closeAt || Date.now(); l.test = true; } return; } // Тропы прежних тестовых данных удалены 25.10 t.my.x3d = {amount:l.ton, demos:l.demos, at:l.at, tip:l.tip, lot:l}; t.my.shared = true; t.my.subscribed = true;
+    if (!t){ if (l.settled === false){ l.settled = true; l.k = l.k || 1; l.settledAt = l.closeAt || Date.now(); l.test = true; } return; } // Тропы прежних тестовых данных удалены 25.10
+    t.my.x3d = {amount:l.ton, demos:l.demos, at:l.at, tip:l.tip, msg:l.msg||'', lot:l}; t.my.shared = true; t.my.subscribed = true;
     if (l.settled === false){ if (Date.now() >= l.closeAt) settleLots(t); else simulateBoost(t.id); } }); }
 if (PTS){ const saved = store.get('ptsBoosts', {}); Object.keys(saved).forEach(id => { const t = byId(id), sv = saved[id]; if (!t || !sv || !sv.x || sv.x.before == null) return;
     t.my.x3d = sv.x; t.vol = sv.vol; t.x3d = sv.x3d; if (sv.tipPct != null) t.tipPct = sv.tipPct; t.my.shared = true; t.my.subscribed = true;
@@ -1313,6 +1429,7 @@ A['addtag-do'] = el => { const t = byId(el.dataset.id), v = el.dataset.v.trim();
 A.alltags = el => openSheet('alltags', {id:el.dataset.id});
 A['open-trail'] = el => go('trail', {id:el.dataset.id});
 A.create = () => {
+  if (S.draft && S.draft.connectOf) S.draft = null; // черновик коннекта не переносим в новую Тропу
   if (S.createdToday) return go('limit');
   S.draft = S.draft || {media:[], text:'', tags:[], geo:{...S.geo}};
   go('create1'); if (S.firstTrail) openSheet('firstTrail');
@@ -1327,11 +1444,14 @@ A.ctag = el => { const v = el.dataset.v.trim(); const d = S.draft; const i = d.t
   S.params.q=''; render(false); };
 A['publish-ask'] = () => openSheet('publish', {ok:false});
 A['publish-check'] = () => { S.sheet.params.ok = !S.sheet.params.ok; renderSheet(); };
-A['publish-do'] = () => { const d = S.draft; const id = 'new'+Date.now();
-  S.myTrails.unshift({id, at:Date.now(), author:'marsaon', own:true, fresh:true, ago:'только что', status:'active',
+A['publish-do'] = () => { const d = S.draft; const id = 'new'+Date.now(); const co = d.connectOf ? byId(d.connectOf) : null;
+  if (co && (co.destroyed || raceAll(co.id).some(t => t.own && t.connectOf === co.id))){ S.draft = null; closeSheet(); return toast('Присоединить нельзя: гонка завершена или ваш коннект уже есть'); }
+  S.myTrails.unshift({id, at:Date.now(), author:'marsaon', own:true, fresh:true, ago:'только что', status:'active', ...(co?{connectOf:co.id}:{}),
     frags:[{art:'user', text:d.text, url:d.media[0].url, kind:d.media[0].kind}], tags:d.tags.map(x=>{const k=POPULAR_TAGS.find(p=>p[0]===x); return [x,k?k[1]:'0',0];}),
     shares:0, x3d:0, mt:'0 TON', mtOf:0, strength:0, trend:'', comments:0, views:'108', my:{frag:0, seen:new Set([0])}});
-  S.createdToday = true; S.createdAt = Date.now(); S.draft = null; S.newId = id; saveMine(); showInFeed(id, 0); openSheet('published'); haptic('heavy'); };
+  if (co){ const t = byId(id); t.tags = co.tags.map(g => [g[0], g[1], 0]); } // теги — от первопроходца
+  if (!co){ S.createdToday = true; S.createdAt = Date.now(); } // коннект пока не считается «новой Тропой дня» (вопрос основателю)
+  S.draft = null; S.newId = id; saveMine(); saveRace(); showInFeed(id, 0); openSheet('published'); haptic('heavy'); };
 // после создания или дополнения — в ленту, прямо на эту Тропу и на нужный фрагмент
 function showInFeed(id, frag){
   const t = byId(id); if (t.own && t.status==='active') t.fresh = true;
@@ -1341,7 +1461,7 @@ function showInFeed(id, frag){
   if (el && feed){ feed.scrollTop = el.offsetTop - feed.offsetTop; S.feedTop = feed.scrollTop; }
 }
 A['see-mine'] = () => closeSheet();
-A.addition = el => go('addition', {id:el.dataset.id});
+A.addition = el => { const t = byId(el.dataset.id); if (!t || !isLive(t)) return toast('Тропа завершена — дополнять её нельзя'); go('addition', {id:el.dataset.id}); };
 A['addition-do'] = el => { const t = byId(el.dataset.id); const txt = (document.querySelector('[data-input="addtext"]')||{}).value||'';
   const m = S.params.addMedia;
   if (!txt.trim() && !m) return toast('Добавьте фото, видео или текст');
