@@ -106,8 +106,9 @@ input,textarea{font:inherit;color:inherit}
 .add-tag{position:absolute;top:22px;right:16px;width:30px;height:30px;border-radius:50%;background:rgba(17,21,31,.6);border:1.5px solid rgba(255,255,255,.35);display:grid;place-items:center;font-size:20px;font-weight:600;z-index:6}
 .author{position:absolute;top:66px;left:16px;right:16px;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:8px;row-gap:8px;align-items:start;z-index:4}
 .author .who{grid-column:1;grid-row:1;min-width:0}
-.author .more{grid-column:2;grid-row:1}
-.author .sub-btn{grid-column:1 / -1;grid-row:2;justify-self:end}
+.author .more{grid-column:2;grid-row:2;justify-self:end;align-self:center;width:32px;height:26px}
+.author .sub-btn{grid-column:2;grid-row:1;justify-self:end;align-self:center;width:124px;padding:0;text-align:center;border:1.5px solid transparent}
+.author .sub-btn.on{border-color:#fff}
 .author .nick{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .author .meta{font-size:12px;color:rgba(255,255,255,.75)}
 .sub-btn{height:28px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,.16);font-size:13px;font-weight:600;white-space:nowrap}
@@ -254,15 +255,13 @@ input,textarea{font:inherit;color:inherit}
 .app-icon .logo-tri{width:54px;height:auto}
 
 /* ---------- Коннект и Money Trust наверху (06.11) ---------- */
-.author .mtp{grid-column:1;grid-row:2;justify-self:start;align-self:center;margin-left:-3px;max-width:none}
-.mtp{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px 0 8px;overflow:hidden;border-radius:999px;background:rgba(0,0,0,.42);border:1px solid rgba(61,139,255,.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#fff;white-space:nowrap;max-width:100%}
+.author .mtp{grid-column:1 / -1;grid-row:2;justify-self:start;align-self:center;margin-left:-3px;max-width:calc(100% - 40px)}
+.mtp{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px 0 8px;overflow:hidden;border-radius:999px;background:rgba(8,12,22,.62);border:1px solid rgba(61,139,255,.75);color:#fff;white-space:nowrap;max-width:100%;transform:translateZ(0)}
 .mtp .l{font-size:11px;color:rgba(255,255,255,.72)}
 .mtp b{font-size:13px;font-weight:600}
 .mtp .d{width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,.35)}
 .mtp .r{font-size:11px;color:rgba(255,255,255,.78);overflow:hidden;text-overflow:ellipsis;min-width:0}
 .mtp .mt-tri{flex-shrink:0}
-.mtp.tight{gap:4px;padding:0 7px 0 6px}.mtp.tight .l,.mtp.tight .r{font-size:10px}.mtp.tight b{font-size:12px}
-.author .mtp.wrap{grid-column:1 / -1;grid-row:3}
 .cbar{display:flex;align-items:center;gap:6px;width:100%;min-height:34px;padding:6px 12px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);color:var(--t-primary);font-size:13px;text-align:left}
 .cbar svg{flex-shrink:0}
 .cbar b{font-weight:600;white-space:nowrap}
@@ -281,6 +280,9 @@ input,textarea{font:inherit;color:inherit}
 .rbadge{display:inline-block;padding:2px 7px;border-radius:999px;background:var(--bg-raised);color:var(--t-secondary);font-size:11px;font-weight:600}
 .rbadge.lead{background:var(--bg-accent-soft);color:var(--t-accent)}
 .box.notice{border:1.5px solid var(--t-accent)}
+
+/* строка «Money Trust · автору» под бустом — всегда высотой в 2 строки, чтобы при обновлении сумм Тропа не прыгала (06.11) */
+.boxsub{display:block;min-height:calc(13px * 1.4 * 2)}
 </style></head>
 <body><div id="app"></div>
 <script>window.DEMOS_WEB=true</script>
@@ -1004,10 +1006,10 @@ function authorCalc(t){ const x = t.my.x3d; if (!x) return 0;
   return afterFee(Math.round(Math.max(0, trailVol(t) - l.ton*lotK(l))*rate*tipPctOf(t)/100)) + lotTipFull(l); }
 function authorNow(t){ const x = t.my.x3d; if (!x) return 0; const fin = PTS ? (x.paid ? x.authorFinal : null) : (x.lot && x.lot.settled !== false ? x.lot.authorFinal : null); return fin != null ? fin : authorCalc(t); }
 const authorStr = t => PTS ? ptsN(authorNow(t)) : `${fmt(authorNow(t))} DEMOS`;
-const boxSub = (t, done) => `<span class="caption c-mut">Money Trust ${mtText(t)} · автору ${done?'':'сейчас '}${authorStr(t)}</span>`;
+const boxSub = (t, done) => `<span class="caption c-mut boxsub">Money Trust ${mtText(t)} · автору ${done?'':'сейчас '}${authorStr(t)}</span>`;
 const authorNote = (t, done) => `<div class="caption c-sec">${done?`Автору из бустов этой Тропы: <b>${authorStr(t)}</b> — зафиксировано, когда Тропа завершилась.`:`Автору из бустов этой Тропы сейчас: <b>${authorStr(t)}</b>. Сумма меняется, пока Тропа жива: покупатели могут изменить награду.`} Видно только тем, кто купил X3D.</div>`;
 const boxHead = (t, value, k, open, done) => `<button class="top" data-a="boxtoggle" data-id="${t.id}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;text-align:left">
-    <span style="min-width:0"><span class="caption c-sec">Вы поддержали Тропу</span><br><span class="heading ${done?'c-suc':''}">+${value}</span><br>${boxSub(t, done)}</span>
+    <span style="min-width:0"><span class="caption c-sec">Вы поддержали Тропу</span><br><span class="heading ${done?'c-suc':''}">+${value}</span>${boxSub(t, done)}</span>
     <span style="display:flex;align-items:center;gap:8px"><span class="strong">${coefStr(k)}</span><span class="c-sec" style="font-size:18px">${open?'▴':'▾'}</span></span></button>`;
 function webBlock(t){ const l = t.my.x3d.lot, k = lotK(l), live = l.settled === false;
   if (!t.my.boxOpen) return boxHead(t, `${fmt(lotDemos(l))} DEMOS`, k, false, !live);
@@ -1593,16 +1595,7 @@ function render(forward){
   S._lastScreen = S.screen;
   renderSheet(); syncBackButton();
   if (S.screen==='map') setTimeout(initMap, 0); else killMap();
-  setTimeout(syncVideos, 0); fitPills();
-}
-// Money Trust на узком экране: сначала чуть мельче, если всё равно задевает «Подписаться» — строкой ниже (06.11)
-function fitPills(){
-  $app.querySelectorAll('.author .mtp').forEach(m => {
-    const sb = m.parentElement.querySelector('.sub-btn'); if (!sb) return;
-    m.classList.remove('tight','wrap');
-    const hit = () => m.getBoundingClientRect().right > sb.getBoundingClientRect().left - 6 && m.getBoundingClientRect().top < sb.getBoundingClientRect().bottom;
-    if (hit()) { m.classList.add('tight'); if (hit()) m.classList.add('wrap'); }
-  });
+  setTimeout(syncVideos, 0);
 }
 function renderSheet(){
   const prev = $app.querySelector('.sheet.float'); const same = prev && S.sheet && prev.dataset.name === S.sheet.name;
@@ -1890,6 +1883,7 @@ function simulateBoost(id){ const t = byId(id); const iv = setInterval(()=>{ con
     if (!closeLeft(x) || t.status==='finished'){ settleBoost(t); clearInterval(iv); if (!S.sheet) toast(`Тропа завершилась: буст ${coefStr(x.coefFinal)} · +${ptsN(x.paid - x.tipPaid)}`); } else saveBoosts();
     document.querySelectorAll(`[data-boost="${id}"]`).forEach(el => { el.innerHTML = coefBar(t, x, el.dataset.compact==='1'); });
     document.querySelectorAll(`[data-boostcard="${id}"]`).forEach(el => { el.innerHTML = ptsBlock(t); });
+    document.querySelectorAll(`[data-card="${id}"] .mtp b`).forEach(el => { el.textContent = mtText(t); });
     if (x.paid && !S.sheet && S.screen==='main' && S.tab==='profile') render(false);
     return; }
   // полная версия (тест): после вас другие покупают X3D этой Тропы; Тропа «завершается» через 3 мин
@@ -1898,6 +1892,7 @@ function simulateBoost(id){ const t = byId(id); const iv = setInterval(()=>{ con
   tipDrift(t);
   if (Date.now() >= lot.closeAt){ settleLots(t); clearInterval(iv); if (!S.sheet) toast(`Тропа завершилась: ${coefStr(lot.k)} · +${fmt(lotDemos(lot))} DEMOS`); } else saveWebLots();
   document.querySelectorAll(`[data-webcard="${id}"]`).forEach(el => { el.innerHTML = webBlock(t); });
+  document.querySelectorAll(`[data-card="${id}"] .mtp b`).forEach(el => { el.textContent = mtText(t); });
   document.querySelectorAll(`[data-lotbar="${id}"]`).forEach(el => { el.innerHTML = kaBarHTML(lotK(lot), lot.demos, lotDemos(lot), !el.dataset.full); });
   if (lot.settled && !S.sheet && S.screen==='main' && S.tab==='profile') render(false); }, 4000); }
 if (WEB){ const v = store.get('webVols', {}); Object.keys(v).forEach(id => { const t = byId(id); if (t){ t.vol = v[id].vol; t.x3d = v[id].x3d; if (v[id].tipPct != null) t.tipPct = v[id].tipPct; } });

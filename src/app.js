@@ -492,10 +492,10 @@ function authorCalc(t){ const x = t.my.x3d; if (!x) return 0;
   return afterFee(Math.round(Math.max(0, trailVol(t) - l.ton*lotK(l))*rate*tipPctOf(t)/100)) + lotTipFull(l); }
 function authorNow(t){ const x = t.my.x3d; if (!x) return 0; const fin = PTS ? (x.paid ? x.authorFinal : null) : (x.lot && x.lot.settled !== false ? x.lot.authorFinal : null); return fin != null ? fin : authorCalc(t); }
 const authorStr = t => PTS ? ptsN(authorNow(t)) : `${fmt(authorNow(t))} DEMOS`;
-const boxSub = (t, done) => `<span class="caption c-mut">Money Trust ${mtText(t)} · автору ${done?'':'сейчас '}${authorStr(t)}</span>`;
+const boxSub = (t, done) => `<span class="caption c-mut boxsub">Money Trust ${mtText(t)} · автору ${done?'':'сейчас '}${authorStr(t)}</span>`;
 const authorNote = (t, done) => `<div class="caption c-sec">${done?`Автору из бустов этой Тропы: <b>${authorStr(t)}</b> — зафиксировано, когда Тропа завершилась.`:`Автору из бустов этой Тропы сейчас: <b>${authorStr(t)}</b>. Сумма меняется, пока Тропа жива: покупатели могут изменить награду.`} Видно только тем, кто купил X3D.</div>`;
 const boxHead = (t, value, k, open, done) => `<button class="top" data-a="boxtoggle" data-id="${t.id}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;text-align:left">
-    <span style="min-width:0"><span class="caption c-sec">Вы поддержали Тропу</span><br><span class="heading ${done?'c-suc':''}">+${value}</span><br>${boxSub(t, done)}</span>
+    <span style="min-width:0"><span class="caption c-sec">Вы поддержали Тропу</span><br><span class="heading ${done?'c-suc':''}">+${value}</span>${boxSub(t, done)}</span>
     <span style="display:flex;align-items:center;gap:8px"><span class="strong">${coefStr(k)}</span><span class="c-sec" style="font-size:18px">${open?'▴':'▾'}</span></span></button>`;
 function webBlock(t){ const l = t.my.x3d.lot, k = lotK(l), live = l.settled === false;
   if (!t.my.boxOpen) return boxHead(t, `${fmt(lotDemos(l))} DEMOS`, k, false, !live);
@@ -1081,16 +1081,7 @@ function render(forward){
   S._lastScreen = S.screen;
   renderSheet(); syncBackButton();
   if (S.screen==='map') setTimeout(initMap, 0); else killMap();
-  setTimeout(syncVideos, 0); fitPills();
-}
-// Money Trust на узком экране: сначала чуть мельче, если всё равно задевает «Подписаться» — строкой ниже (06.11)
-function fitPills(){
-  $app.querySelectorAll('.author .mtp').forEach(m => {
-    const sb = m.parentElement.querySelector('.sub-btn'); if (!sb) return;
-    m.classList.remove('tight','wrap');
-    const hit = () => m.getBoundingClientRect().right > sb.getBoundingClientRect().left - 6 && m.getBoundingClientRect().top < sb.getBoundingClientRect().bottom;
-    if (hit()) { m.classList.add('tight'); if (hit()) m.classList.add('wrap'); }
-  });
+  setTimeout(syncVideos, 0);
 }
 function renderSheet(){
   const prev = $app.querySelector('.sheet.float'); const same = prev && S.sheet && prev.dataset.name === S.sheet.name;
@@ -1378,6 +1369,7 @@ function simulateBoost(id){ const t = byId(id); const iv = setInterval(()=>{ con
     if (!closeLeft(x) || t.status==='finished'){ settleBoost(t); clearInterval(iv); if (!S.sheet) toast(`Тропа завершилась: буст ${coefStr(x.coefFinal)} · +${ptsN(x.paid - x.tipPaid)}`); } else saveBoosts();
     document.querySelectorAll(`[data-boost="${id}"]`).forEach(el => { el.innerHTML = coefBar(t, x, el.dataset.compact==='1'); });
     document.querySelectorAll(`[data-boostcard="${id}"]`).forEach(el => { el.innerHTML = ptsBlock(t); });
+    document.querySelectorAll(`[data-card="${id}"] .mtp b`).forEach(el => { el.textContent = mtText(t); });
     if (x.paid && !S.sheet && S.screen==='main' && S.tab==='profile') render(false);
     return; }
   // полная версия (тест): после вас другие покупают X3D этой Тропы; Тропа «завершается» через 3 мин
@@ -1386,6 +1378,7 @@ function simulateBoost(id){ const t = byId(id); const iv = setInterval(()=>{ con
   tipDrift(t);
   if (Date.now() >= lot.closeAt){ settleLots(t); clearInterval(iv); if (!S.sheet) toast(`Тропа завершилась: ${coefStr(lot.k)} · +${fmt(lotDemos(lot))} DEMOS`); } else saveWebLots();
   document.querySelectorAll(`[data-webcard="${id}"]`).forEach(el => { el.innerHTML = webBlock(t); });
+  document.querySelectorAll(`[data-card="${id}"] .mtp b`).forEach(el => { el.textContent = mtText(t); });
   document.querySelectorAll(`[data-lotbar="${id}"]`).forEach(el => { el.innerHTML = kaBarHTML(lotK(lot), lot.demos, lotDemos(lot), !el.dataset.full); });
   if (lot.settled && !S.sheet && S.screen==='main' && S.tab==='profile') render(false); }, 4000); }
 if (WEB){ const v = store.get('webVols', {}); Object.keys(v).forEach(id => { const t = byId(id); if (t){ t.vol = v[id].vol; t.x3d = v[id].x3d; if (v[id].tipPct != null) t.tipPct = v[id].tipPct; } });
