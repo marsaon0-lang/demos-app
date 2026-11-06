@@ -83,13 +83,15 @@ function go(screen, params={}, push=true){
 }
 function back(){
   if (S.sheet){ closeSheet(); return; }
+  // гонка уничтожена (№1 завершился) — «Назад» ведёт в общую ленту с актуальными Тропами (06.11)
+  if (S.screen==='race'){ const t0 = byId(S.params.id); if (!t0 || !raceAll(raceIdOf(t0)).length){ S.stack = []; S.tab = 'feed'; S.feedTab = 'trails'; S.screen = 'main'; S.params = {}; S.feedTop = 0; render(false); return; } }
   const prev = S.stack.pop();
   if (prev){ S.screen = prev.screen; S.params = prev.params; render(false); }
 }
 function home(tab){ S.stack = []; S.tab = tab || S.tab; S.screen = 'main'; S.params = {}; S.sheet=null; render(false); }
 function syncBackButton(){
   if (!tg || !tg.BackButton) return;
-  try{ (S.stack.length || S.sheet) ? tg.BackButton.show() : tg.BackButton.hide(); }catch(e){}
+  try{ (S.stack.length || S.sheet || S.screen==='race') ? tg.BackButton.show() : tg.BackButton.hide(); }catch(e){}
 }
 
 // ---------- тосты ----------
@@ -297,7 +299,7 @@ const refLink = () => WEB ? (location.origin + location.pathname + '?ref=' + REF
 const refLinkShort = () => refLink().replace(/^https?:\/\//,'');
 // Android-приложение (APK, 24.10): веб-версия внутри приложения — без баннера установки, системная «Назад» листает экраны
 const ANDROID_APP = /DEMOSAndroid/.test(navigator.userAgent);
-window.DEMOS_BACK = () => { if (S.sheet || S.stack.length){ back(); return true; } return false; };
+window.DEMOS_BACK = () => { if (S.sheet || S.stack.length || S.screen==='race'){ back(); return true; } return false; };
 const isStandalone = () => { try{ return ANDROID_APP || matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; }catch(e){ return false; } };
 let installEvt = null;
 if (WEB){ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (S.screen==='install') render(false); });
